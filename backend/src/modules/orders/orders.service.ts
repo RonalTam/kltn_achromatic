@@ -6,6 +6,41 @@ import {
 import { PrismaService } from '../../database/prisma.service';
 import { OrderStatus, PaymentMethod, Prisma } from '@prisma/client';
 
+const ALLOWED_ORDER_STATUS_TRANSITIONS: Record<
+  OrderStatus,
+  readonly OrderStatus[]
+> = {
+  [OrderStatus.PENDING]: [
+    OrderStatus.CONFIRMED,
+    OrderStatus.PROCESSING,
+    OrderStatus.CANCELLED,
+  ],
+  [OrderStatus.CONFIRMED]: [
+    OrderStatus.PROCESSING,
+    OrderStatus.SHIPPING,
+    OrderStatus.CANCELLED,
+  ],
+  [OrderStatus.PROCESSING]: [
+    OrderStatus.SHIPPING,
+    OrderStatus.DELIVERED,
+    OrderStatus.CANCELLED,
+  ],
+  [OrderStatus.SHIPPING]: [OrderStatus.DELIVERED],
+  [OrderStatus.DELIVERED]: [OrderStatus.COMPLETED, OrderStatus.REFUNDED],
+  [OrderStatus.COMPLETED]: [OrderStatus.REFUNDED],
+  [OrderStatus.CANCELLED]: [],
+  [OrderStatus.REFUNDED]: [],
+};
+
+function isPrismaErrorCode(error: unknown, code: string): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    error.code === code
+  );
+}
+
 @Injectable()
 export class OrdersService {
   constructor(private prisma: PrismaService) {}
@@ -137,10 +172,11 @@ export class OrdersService {
     // Create order in transaction
     const order = await this.prisma.$transaction(async (tx) => {
       for (const item of cart.items) {
-        if (!item.variantId) continue;
-
         const inventory = await tx.inventory.findFirst({
-          where: { variantId: item.variantId },
+          where: {
+            productId: item.productId,
+            variantId: item.variantId ?? null,
+          },
           select: { id: true, quantity: true, reserved: true },
         });
         const available =
@@ -148,14 +184,36 @@ export class OrdersService {
 
         if (!inventory || available < item.quantity) {
           throw new BadRequestException(
-            `Only ${Math.max(available, 0)} items in stock for ${item.variant?.sku || item.product.sku}`,
+            `Sản phẩm ${item.variant?.sku || item.product.sku} chỉ còn ${Math.max(available, 0)} sản phẩm trong kho.`,
           );
         }
 
-        await tx.inventory.update({
-          where: { id: inventory.id },
-          data: { reserved: { increment: item.quantity } },
-        });
+        // Reserve stock atomically. The condition is evaluated by PostgreSQL
+        // at update time, so concurrent checkouts cannot both reserve the
+        // same remaining units.
+        const reservedRows = await tx.$executeRaw(
+          Prisma.sql`
+            UPDATE "inventory"
+            SET "reserved" = "reserved" + ${item.quantity},
+                "updatedAt" = NOW()
+            WHERE "id" = ${inventory.id}
+              AND "quantity" - "reserved" >= ${item.quantity}
+          `,
+        );
+
+        if (reservedRows !== 1) {
+          const latestInventory = await tx.inventory.findUnique({
+            where: { id: inventory.id },
+            select: { quantity: true, reserved: true },
+          });
+          const latestAvailable = Math.max(
+            0,
+            (latestInventory?.quantity ?? 0) - (latestInventory?.reserved ?? 0),
+          );
+          throw new BadRequestException(
+            `Sản phẩm ${item.variant?.sku || item.product.sku} chỉ còn ${latestAvailable} sản phẩm trong kho.`,
+          );
+        }
       }
 
       const newOrder = await tx.order.create({
@@ -258,19 +316,54 @@ export class OrdersService {
           include: {
             product: {
               select: {
+                id: true,
                 name: true,
                 slug: true,
+                sku: true,
+                basePrice: true,
+                isActive: true,
                 images: { where: { isPrimary: true }, take: 1 },
+                inventory: {
+                  where: { variantId: null },
+                  select: { quantity: true, reserved: true },
+                  take: 1,
+                },
               },
             },
-            variant: { include: { color: true, size: true } },
+            variant: {
+              include: {
+                color: true,
+                size: true,
+                inventory: {
+                  select: { quantity: true, reserved: true },
+                },
+              },
+            },
           },
         },
         address: true,
-        payment: { include: { transactions: true } },
+        payment: {
+          select: {
+            id: true,
+            method: true,
+            status: true,
+            amount: true,
+            currency: true,
+            paidAt: true,
+            expiresAt: true,
+          },
+        },
         shippingMethod: true,
         shipping: true,
-        statusHistory: { orderBy: { createdAt: 'desc' } },
+        statusHistory: {
+          orderBy: { createdAt: 'desc' },
+          select: {
+            id: true,
+            status: true,
+            note: true,
+            createdAt: true,
+          },
+        },
       },
     });
 
@@ -291,7 +384,7 @@ export class OrdersService {
 
   /**
    * Cancel an order on behalf of the customer.
-   * Only orders in PENDING or CONFIRMED status can be cancelled by the user.
+   * Customers can cancel until the order is handed to the carrier.
    */
   async cancelByUser(orderId: string, userId: string, reason?: string) {
     const order = await this.prisma.order.findUnique({
@@ -303,10 +396,11 @@ export class OrdersService {
     if (order.userId !== userId)
       throw new NotFoundException('Không tìm thấy đơn hàng.');
 
-    // Only allow cancellation for PENDING or CONFIRMED orders
+    // PROCESSING is still before carrier handoff, so it remains cancellable.
     const cancellableStatuses: OrderStatus[] = [
       OrderStatus.PENDING,
       OrderStatus.CONFIRMED,
+      OrderStatus.PROCESSING,
     ];
     if (!cancellableStatuses.includes(order.status)) {
       const statusMap: Record<string, string> = {
@@ -319,27 +413,42 @@ export class OrdersService {
       };
       const statusLabel = statusMap[order.status] ?? order.status;
       throw new BadRequestException(
-        `Không thể hủy đơn hàng đang ở trạng thái "${statusLabel}". Chỉ có thể hủy đơn hàng đang chờ xác nhận hoặc đã xác nhận.`,
+        `Không thể hủy đơn hàng đang ở trạng thái "${statusLabel}". Chỉ có thể hủy trước khi đơn hàng được bàn giao cho đơn vị vận chuyển.`,
       );
     }
 
+    const normalizedReason = reason?.trim() || null;
+    const cancelledAt = new Date();
+
     return this.prisma.$transaction(async (tx) => {
-      // Update order status to CANCELLED
-      const updated = await tx.order.update({
-        where: { id: orderId },
+      // The status predicate makes cancellation idempotent under concurrent
+      // requests and prevents releasing inventory reserved by another order.
+      const cancellation = await tx.order.updateMany({
+        where: {
+          id: orderId,
+          userId,
+          status: { in: cancellableStatuses },
+        },
         data: {
           status: OrderStatus.CANCELLED,
-          cancelledAt: new Date(),
+          cancelledAt,
+          cancelReason: normalizedReason,
         },
       });
+
+      if (cancellation.count !== 1) {
+        throw new BadRequestException(
+          'Đơn hàng đã thay đổi trạng thái và không thể hủy. Vui lòng tải lại trang.',
+        );
+      }
 
       // Log status change history
       await tx.orderStatusHistory.create({
         data: {
           orderId,
           status: OrderStatus.CANCELLED,
-          note: reason
-            ? `Khách hàng hủy đơn: ${reason}`
+          note: normalizedReason
+            ? `Khách hàng hủy đơn: ${normalizedReason}`
             : 'Khách hàng tự hủy đơn hàng',
           changedBy: userId,
         },
@@ -347,18 +456,27 @@ export class OrdersService {
 
       // Release reserved inventory
       for (const item of order.items) {
-        if (item.variantId) {
-          await tx.inventory.updateMany({
-            where: {
-              variantId: item.variantId,
-              reserved: { gte: item.quantity },
-            },
-            data: { reserved: { decrement: item.quantity } },
-          });
+        const releasedInventory = await tx.inventory.updateMany({
+          where: {
+            productId: item.productId,
+            variantId: item.variantId ?? null,
+            reserved: { gte: item.quantity },
+          },
+          data: { reserved: { decrement: item.quantity } },
+        });
+        if (releasedInventory.count !== 1) {
+          throw new BadRequestException(
+            'Không thể hoàn trả tồn kho cho đơn hàng. Vui lòng liên hệ quản trị viên.',
+          );
         }
       }
 
-      return updated;
+      return {
+        ...order,
+        status: OrderStatus.CANCELLED,
+        cancelledAt,
+        cancelReason: normalizedReason,
+      };
     });
   }
 
@@ -374,25 +492,41 @@ export class OrdersService {
         include: { items: true },
       });
       if (!order) throw new NotFoundException('Order not found');
-      if (
-        order.status === OrderStatus.DELIVERED &&
-        status === OrderStatus.CANCELLED
-      ) {
-        throw new BadRequestException('Delivered orders cannot be cancelled');
+
+      const isIdempotentUpdate = order.status === status;
+      const isAllowedTransition =
+        isIdempotentUpdate ||
+        ALLOWED_ORDER_STATUS_TRANSITIONS[order.status].includes(status);
+      if (!isAllowedTransition) {
+        throw new BadRequestException(
+          `Cannot change order status from ${order.status} to ${status}`,
+        );
       }
 
-      const updated = await tx.order.update({
-        where: { id: orderId },
-        data: {
-          status,
-          ...(status === OrderStatus.DELIVERED
-            ? { deliveredAt: new Date() }
-            : {}),
-          ...(status === OrderStatus.CANCELLED
-            ? { cancelledAt: new Date() }
-            : {}),
-        },
-      });
+      let updated;
+      try {
+        updated = await tx.order.update({
+          // Including the previously read status makes the update conditional.
+          // A concurrent customer cancellation therefore cannot be overwritten.
+          where: { id: orderId, status: order.status },
+          data: {
+            status,
+            ...(status === OrderStatus.DELIVERED && !isIdempotentUpdate
+              ? { deliveredAt: new Date() }
+              : {}),
+            ...(status === OrderStatus.CANCELLED && !isIdempotentUpdate
+              ? { cancelledAt: new Date() }
+              : {}),
+          },
+        });
+      } catch (error) {
+        if (isPrismaErrorCode(error, 'P2025')) {
+          throw new BadRequestException(
+            'Order status changed concurrently. Please reload and try again.',
+          );
+        }
+        throw error;
+      }
       await tx.orderStatusHistory.create({
         data: { orderId, status, note, changedBy },
       });
@@ -402,14 +536,18 @@ export class OrdersService {
         order.status !== OrderStatus.CANCELLED
       ) {
         for (const item of order.items) {
-          if (item.variantId) {
-            await tx.inventory.updateMany({
-              where: {
-                variantId: item.variantId,
-                reserved: { gte: item.quantity },
-              },
-              data: { reserved: { decrement: item.quantity } },
-            });
+          const releasedInventory = await tx.inventory.updateMany({
+            where: {
+              productId: item.productId,
+              variantId: item.variantId ?? null,
+              reserved: { gte: item.quantity },
+            },
+            data: { reserved: { decrement: item.quantity } },
+          });
+          if (releasedInventory.count !== 1) {
+            throw new BadRequestException(
+              'Unable to release the reserved inventory for this order',
+            );
           }
         }
       }
@@ -419,18 +557,22 @@ export class OrdersService {
         order.status !== OrderStatus.DELIVERED
       ) {
         for (const item of order.items) {
-          if (item.variantId) {
-            await tx.inventory.updateMany({
-              where: {
-                variantId: item.variantId,
-                quantity: { gte: item.quantity },
-                reserved: { gte: item.quantity },
-              },
-              data: {
-                quantity: { decrement: item.quantity },
-                reserved: { decrement: item.quantity },
-              },
-            });
+          const consumedInventory = await tx.inventory.updateMany({
+            where: {
+              productId: item.productId,
+              variantId: item.variantId ?? null,
+              quantity: { gte: item.quantity },
+              reserved: { gte: item.quantity },
+            },
+            data: {
+              quantity: { decrement: item.quantity },
+              reserved: { decrement: item.quantity },
+            },
+          });
+          if (consumedInventory.count !== 1) {
+            throw new BadRequestException(
+              'Unable to consume the reserved inventory for this order',
+            );
           }
         }
         // Update sold count

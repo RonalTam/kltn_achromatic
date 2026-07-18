@@ -106,6 +106,15 @@ type AdminBannerPayload = {
 };
 
 const PAGE_LIMIT_MAX = 100;
+const MANAGED_SETTING_KEYS = [
+  'store_name',
+  'store_email',
+  'store_phone',
+  'store_address',
+  'currency',
+  'free_shipping_threshold',
+  'order_prefix',
+] as const;
 
 @Injectable()
 export class AdminService {
@@ -261,6 +270,8 @@ export class AdminService {
         id: true,
         name: true,
         slug: true,
+        sku: true,
+        isActive: true,
         soldCount: true,
         basePrice: true,
         images: { where: { isPrimary: true }, take: 1 },
@@ -521,7 +532,9 @@ export class AdminService {
           ...(payload.name || payload.shortDescription || payload.description
             ? {
                 ...(payload.metaTitle === undefined
-                  ? { metaTitle: `${payload.name || product.name} | Achromatic` }
+                  ? {
+                      metaTitle: `${payload.name || product.name} | Achromatic`,
+                    }
                   : {}),
                 ...(payload.metaDescription === undefined
                   ? {
@@ -552,7 +565,6 @@ export class AdminService {
         );
       if (payload.collectionIds)
         await this.replaceProductCollections(tx, id, payload.collectionIds);
-
     });
 
     return this.getProduct(id);
@@ -595,8 +607,8 @@ export class AdminService {
       // Deduplicate orders
       const uniqueOrders = Array.from(
         new Map(
-          activeOrderItems.map((item) => [item.order.id, item.order])
-        ).values()
+          activeOrderItems.map((item) => [item.order.id, item.order]),
+        ).values(),
       );
       const orderNumbers = uniqueOrders
         .map((o) => `#${o.orderNumber} (${o.status})`)
@@ -606,7 +618,7 @@ export class AdminService {
         `Không thể xóa sản phẩm "${product.name}" vì đang có ${
           uniqueOrders.length
         } đơn hàng chưa hoàn thành: ${orderNumbers}. ` +
-        `Vui lòng chờ các đơn hàng này hoàn tất hoặc hủy trước khi xóa sản phẩm.`
+          `Vui lòng chờ các đơn hàng này hoàn tất hoặc hủy trước khi xóa sản phẩm.`,
       );
     }
 
@@ -1172,6 +1184,9 @@ export class AdminService {
     });
     const previousQty = inventory.quantity;
     const newQty = previousQty + quantity;
+    if (newQty < 0) {
+      throw new BadRequestException('Inventory quantity cannot be negative');
+    }
 
     return this.prisma.$transaction(async (tx) => {
       const updated = await tx.inventory.update({
@@ -1373,6 +1388,45 @@ export class AdminService {
       where: { id },
       data: { isActive: false },
     });
+  }
+
+  async getSettings() {
+    const settings = await this.prisma.settings.findMany({
+      where: { key: { in: [...MANAGED_SETTING_KEYS] } },
+      orderBy: { key: 'asc' },
+    });
+
+    return Object.fromEntries(
+      settings.map((setting) => [setting.key, setting.value]),
+    );
+  }
+
+  async updateSettings(payload: Record<string, unknown>) {
+    const entries = Object.entries(payload).filter(
+      ([key, value]) =>
+        MANAGED_SETTING_KEYS.includes(
+          key as (typeof MANAGED_SETTING_KEYS)[number],
+        ) && ['string', 'number', 'boolean'].includes(typeof value),
+    );
+
+    if (entries.length === 0) return this.getSettings();
+
+    await this.prisma.$transaction(
+      entries.map(([key, value]) =>
+        this.prisma.settings.upsert({
+          where: { key },
+          update: { value: String(value) },
+          create: {
+            key,
+            value: String(value),
+            type: typeof value,
+            group: key.startsWith('store_') ? 'general' : 'commerce',
+          },
+        }),
+      ),
+    );
+
+    return this.getSettings();
   }
 
   async getAuditLogs(page = 1, limit = 50) {

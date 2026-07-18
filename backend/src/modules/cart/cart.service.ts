@@ -38,6 +38,54 @@ const CART_INCLUDE = {
 export class CartService {
   constructor(private prisma: PrismaService) {}
 
+  private async getAvailableStock(
+    productId: string,
+    variantId?: string | null,
+  ): Promise<number> {
+    if (variantId) {
+      const variant = await this.prisma.productVariant.findFirst({
+        where: { id: variantId, productId, isActive: true },
+        select: {
+          inventory: {
+            select: { quantity: true, reserved: true },
+            take: 1,
+          },
+        },
+      });
+
+      if (!variant) throw new NotFoundException('Product variant not found');
+
+      const inventory = variant.inventory[0];
+      return Math.max(
+        0,
+        (inventory?.quantity ?? 0) - (inventory?.reserved ?? 0),
+      );
+    }
+
+    const activeVariant = await this.prisma.productVariant.findFirst({
+      where: { productId, isActive: true },
+      select: { id: true },
+    });
+    if (activeVariant) {
+      throw new BadRequestException('Please select a product variant');
+    }
+
+    const inventory = await this.prisma.inventory.findFirst({
+      where: { productId, variantId: null },
+      select: { quantity: true, reserved: true },
+    });
+
+    return Math.max(0, (inventory?.quantity ?? 0) - (inventory?.reserved ?? 0));
+  }
+
+  private assertStock(requestedQuantity: number, available: number) {
+    if (requestedQuantity > available) {
+      throw new BadRequestException(
+        `Số lượng yêu cầu vượt quá tồn kho. Chỉ còn ${available} sản phẩm.`,
+      );
+    }
+  }
+
   async getCart(userId: string) {
     let cart = await this.prisma.cart.findUnique({
       where: { userId },
@@ -77,27 +125,12 @@ export class CartService {
       },
     });
 
-    if (data.variantId) {
-      const variant = await this.prisma.productVariant.findFirst({
-        where: {
-          id: data.variantId,
-          productId: data.productId,
-          isActive: true,
-        },
-        include: {
-          inventory: { select: { quantity: true, reserved: true } },
-        },
-      });
-
-      if (!variant) throw new NotFoundException('Product variant not found');
-
-      const inventory = variant.inventory[0];
-      const available = (inventory?.quantity ?? 0) - (inventory?.reserved ?? 0);
-      const requestedQuantity = (existing?.quantity ?? 0) + data.quantity;
-      if (available < requestedQuantity) {
-        throw new BadRequestException(`Only ${available} items in stock`);
-      }
-    }
+    const available = await this.getAvailableStock(
+      data.productId,
+      data.variantId,
+    );
+    const requestedQuantity = (existing?.quantity ?? 0) + data.quantity;
+    this.assertStock(requestedQuantity, available);
 
     // Upsert cart item
     if (existing) {
@@ -123,31 +156,26 @@ export class CartService {
   }
 
   async updateItem(userId: string, itemId: string, quantity: number) {
-    if (quantity <= 0) return this.removeItem(userId, itemId);
     if (!Number.isInteger(quantity)) {
       throw new BadRequestException('Quantity must be a whole number');
     }
+    if (quantity < 0) {
+      throw new BadRequestException('Quantity cannot be negative');
+    }
+    if (quantity === 0) return this.removeItem(userId, itemId);
 
     const item = await this.prisma.cartItem.findFirst({
       where: { id: itemId, cart: { userId } },
-      include: {
-        variant: {
-          include: {
-            inventory: { select: { quantity: true, reserved: true } },
-          },
-        },
-      },
+      select: { id: true, productId: true, variantId: true },
     });
 
     if (!item) throw new NotFoundException('Cart item not found');
 
-    if (item.variantId) {
-      const inventory = item.variant?.inventory[0];
-      const available = (inventory?.quantity ?? 0) - (inventory?.reserved ?? 0);
-      if (available < quantity) {
-        throw new BadRequestException(`Only ${available} items in stock`);
-      }
-    }
+    const available = await this.getAvailableStock(
+      item.productId,
+      item.variantId,
+    );
+    this.assertStock(quantity, available);
 
     await this.prisma.cartItem.update({
       where: { id: itemId },

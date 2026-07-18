@@ -175,12 +175,21 @@ Chạy kiểm tra tĩnh và build:
 ```bash
 cd backend
 npm run build
-npm test
+npm test -- --runInBand
+npm run test:cov -- --runInBand
+npm run test:e2e -- --runInBand
 
 cd ../frontend
 npm run lint
+npm test -- --runInBand
+npm run test:coverage -- --runInBand
 npm run build
+npm run test:e2e
 ```
+
+Lần đầu chạy Playwright trên một máy mới, cài trình duyệt test bằng
+`npx playwright install chromium` trong thư mục `frontend`. Luồng E2E dùng mock
+API riêng nên không phụ thuộc dữ liệu seed trong PostgreSQL.
 
 Kiểm tra nhanh API bằng PowerShell từ thư mục gốc:
 

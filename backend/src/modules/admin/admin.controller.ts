@@ -118,7 +118,7 @@ type BannerBody = {
 
 @ApiTags('admin')
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(Role.ADMIN, Role.SUPER_ADMIN, Role.MANAGER)
+@Roles(Role.ADMIN, Role.SUPER_ADMIN)
 @ApiBearerAuth('JWT-auth')
 @Controller('admin')
 export class AdminController {
@@ -317,6 +317,16 @@ export class AdminController {
   @Delete('banners/:id')
   removeBanner(@Param('id') id: string) {
     return this.adminService.removeBanner(id);
+  }
+
+  @Get('settings')
+  getSettings() {
+    return this.adminService.getSettings();
+  }
+
+  @Patch('settings')
+  updateSettings(@Body() body: Record<string, unknown>) {
+    return this.adminService.updateSettings(body);
   }
 
   @Roles(Role.ADMIN, Role.SUPER_ADMIN)

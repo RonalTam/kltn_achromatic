@@ -119,6 +119,7 @@ model User {
   cart          Cart?
   orders        Order[]
   reviews       Review[]
+  reviewHelpfulVotes ReviewHelpfulVote[]
   wishlist      Wishlist?
   notifications Notification[]
   couponUsages  CouponUsage[]
@@ -672,12 +673,28 @@ model Review {
   product Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
   user    User          @relation(fields: [userId], references: [id])
   images  ReviewImage[]
+  helpfulVotes ReviewHelpfulVote[]
 
-  @@unique([productId, userId, orderId])
+  @@unique([productId, userId])
   @@index([productId])
   @@index([userId])
   @@index([isApproved])
   @@map("reviews")
+}
+
+model ReviewHelpfulVote {
+  id        String   @id @default(cuid())
+  reviewId  String
+  userId    String
+  createdAt DateTime @default(now())
+
+  review Review @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([reviewId, userId])
+  @@index([reviewId])
+  @@index([userId])
+  @@map("review_helpful_votes")
 }
 
 model ReviewImage {

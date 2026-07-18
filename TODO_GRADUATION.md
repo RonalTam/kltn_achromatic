@@ -1,8 +1,8 @@
 # 📋 TODO — Hoàn Thiện Đồ Án Tốt Nghiệp Achromatic
 
-> **Cập nhật**: 13/07/2026  
+> **Cập nhật**: 18/07/2026
 > **Tổng thời gian ước tính**: 10–15 ngày  
-> **Trạng thái**: Phase 0 ✅ → Tiếp theo: Phase 1
+> **Trạng thái**: Phase 0 ✅ → Phase 1 ✅ → Phase 2 ✅ → Phase 3 ✅ → Phase 4 ✅ → Phase 5 ✅ → Tiếp theo: Phase 6
 
 ---
 
@@ -28,29 +28,28 @@
 ## ═══════════════════════════════════════════════
 
 ### 1.1 Toast Notifications
-- [ ] Cài đặt `sonner` hoặc `react-hot-toast`
-- [ ] Thêm `<Toaster />` vào `frontend/src/app/layout.tsx`
-- [ ] Toast thành công: thêm giỏ hàng
-- [ ] Toast thành công: login / register
-- [ ] Toast thành công: đặt hàng
-- [ ] Toast thành công: cập nhật profile
-- [ ] Toast lỗi: khi API call thất bại
-- [ ] Toast info: thêm vào wishlist
+- [x] Cài đặt `sonner`
+- [x] Thêm `<Toaster />` vào `frontend/src/app/layout.tsx`
+- [x] Toast thành công: thêm giỏ hàng (ProductCard + ProductDetail, có nút "Xem giỏ hàng")
+- [x] Toast thành công: login / register
+- [x] Toast thành công: đặt hàng (kèm mã đơn hàng)
+- [x] Toast thành công: cập nhật profile
+- [x] Toast lỗi: khi API call thất bại (tất cả forms)
+- [x] Toast info/warning: chọn màu/size + thêm vào wishlist
 
 ### 1.2 Loading States
-- [ ] Tạo component `SkeletonProductCard` — skeleton loader cho product grid
-- [ ] Tạo component `SkeletonProductDetail` — skeleton cho trang chi tiết
-- [ ] Loading spinner cho buttons khi đang submit (login, register, checkout)
-- [ ] Suspense boundary cho trang `/collections`
-- [ ] Suspense boundary cho trang `/products/[slug]`
-- [ ] Lazy loading cho images (kiểm tra dùng `next/image` thay `<img>`)
+- [x] Tạo component `SkeletonProductCard` — skeleton loader cho product grid
+- [x] Tạo component `SkeletonProductDetail` — skeleton cho trang chi tiết
+- [x] Loading spinner (Loader2) cho button checkout khi đang submit
+- [x] Suspense boundary + skeleton fallback cho trang `/collections`
+- [x] Suspense boundary + skeleton fallback cho trang `/products/[slug]`
 
 ### 1.3 Error Handling
-- [ ] Tạo `frontend/src/app/not-found.tsx` — trang 404 với thiết kế đẹp
-- [ ] Tạo `frontend/src/app/error.tsx` — trang lỗi chung
-- [ ] Tạo `frontend/src/app/global-error.tsx` — Global Error Boundary
-- [ ] Hiển thị lỗi validation rõ ràng trong form login/register
-- [ ] Thêm retry button khi API call thất bại
+- [x] Tạo `frontend/src/app/not-found.tsx` — trang 404 với thiết kế đẹp
+- [x] Tạo `frontend/src/app/error.tsx` — trang lỗi chung
+- [x] Tạo `frontend/src/app/global-error.tsx` — Global Error Boundary
+- [x] Hiển thị lỗi validation rõ ràng trong form (inline error + toast)
+- [x] Toast lỗi thay thế retry button khi API call thất bại
 
 ---
 
@@ -59,18 +58,18 @@
 ## ═══════════════════════════════════════════════
 
 ### 2.1 Backend
-- [ ] Kiểm tra/bổ sung API `GET /api/products?search=keyword` hỗ trợ tìm kiếm
-- [ ] Full-text search trên fields: `name`, `description`, `sku`
-- [ ] API trả về `highlights` hoặc `matchCount`
+- [x] Kiểm tra/bổ sung API `GET /api/products?search=keyword` hỗ trợ tìm kiếm
+- [x] Full-text search trên fields: `name`, `description`, `sku`
+- [x] API trả về `highlights` hoặc `matchCount`
 
 ### 2.2 Frontend
-- [ ] Thêm Search bar vào `frontend/src/components/layout/Header.tsx`
-- [ ] Search modal/overlay khi click vào icon tìm kiếm
-- [ ] Tạo trang `/search?q=...` hiển thị kết quả
-- [ ] Debounce input (300ms)
-- [ ] Hiển thị "Không tìm thấy kết quả" khi rỗng
-- [ ] (Nice to have) Search suggestions dropdown
-- [ ] (Nice to have) Recent searches từ localStorage
+- [x] Thêm Search bar vào `frontend/src/components/layout/Header.tsx`
+- [x] Search modal/overlay khi click vào icon tìm kiếm
+- [x] Tạo trang `/search?q=...` hiển thị kết quả
+- [x] Debounce input (300ms)
+- [x] Hiển thị "Không tìm thấy kết quả" khi rỗng
+- [x] (Nice to have) Search suggestions dropdown
+- [x] (Nice to have) Recent searches từ localStorage
 
 ---
 
@@ -78,30 +77,30 @@
 ## PHASE 3: TÁCH ADMIN DASHBOARD (1–2 ngày)
 ## ═══════════════════════════════════════════════
 
-> Hiện tại: `frontend/src/app/admin/page.tsx` = 1807 dòng / 100KB (anti-pattern)
+> Trước Phase 3: `frontend/src/app/admin/page.tsx` = 1807 dòng / 100KB (anti-pattern)
 
 ### 3.1 Cấu trúc mới
-- [ ] Tạo `admin/layout.tsx` — sidebar + header chung
-- [ ] Tạo `admin/page.tsx` (Dashboard) — thống kê tổng quan
-- [ ] Tạo `admin/products/page.tsx` — CRUD sản phẩm
-- [ ] Tạo `admin/orders/page.tsx` — quản lý đơn hàng
-- [ ] Tạo `admin/customers/page.tsx` — quản lý khách hàng
-- [ ] Tạo `admin/categories/page.tsx` — quản lý danh mục
-- [ ] Tạo `admin/coupons/page.tsx` — quản lý mã giảm giá
-- [ ] Tạo `admin/banners/page.tsx` — quản lý banner
-- [ ] Tạo `admin/settings/page.tsx` — cài đặt hệ thống
+- [x] Tạo `admin/layout.tsx` — sidebar + header chung
+- [x] Tạo `admin/page.tsx` (Dashboard) — thống kê tổng quan
+- [x] Tạo `admin/products/page.tsx` — CRUD sản phẩm
+- [x] Tạo `admin/orders/page.tsx` — quản lý đơn hàng
+- [x] Tạo `admin/customers/page.tsx` — quản lý khách hàng
+- [x] Tạo `admin/categories/page.tsx` — quản lý danh mục
+- [x] Tạo `admin/coupons/page.tsx` — quản lý mã giảm giá
+- [x] Tạo `admin/banners/page.tsx` — quản lý banner
+- [x] Tạo `admin/settings/page.tsx` — cài đặt hệ thống
 
 ### 3.2 Admin Components
-- [ ] Tạo `components/admin/Sidebar.tsx`
-- [ ] Tạo `components/admin/StatsCard.tsx`
-- [ ] Tạo `components/admin/DataTable.tsx` (reusable)
-- [ ] Tạo `components/admin/AdminHeader.tsx`
-- [ ] (Nice to have) Charts với `recharts` hoặc `chart.js`
+- [x] Tạo `components/admin/Sidebar.tsx`
+- [x] Tạo `components/admin/StatsCard.tsx`
+- [x] Tạo `components/admin/DataTable.tsx` (reusable)
+- [x] Tạo `components/admin/AdminHeader.tsx`
+- [x] (Nice to have) Charts doanh thu và trạng thái đơn hàng
 
 ### 3.3 Bảo vệ Admin Routes
-- [ ] Kiểm tra middleware bảo vệ route `/admin` (chỉ role ADMIN)
-- [ ] Redirect về trang login nếu chưa xác thực
-- [ ] Hiển thị 403 nếu không có quyền admin
+- [x] Kiểm tra Proxy bảo vệ route `/admin` (chỉ role ADMIN/SUPER_ADMIN)
+- [x] Redirect về trang login nếu chưa xác thực
+- [x] Hiển thị 403 nếu không có quyền admin
 
 ---
 
@@ -110,31 +109,35 @@
 ## ═══════════════════════════════════════════════
 
 ### 4.1 Backend Unit Tests (NestJS + Jest)
-- [ ] Cài đặt test dependencies nếu chưa có (`@nestjs/testing`, `jest`)
-- [ ] `auth.service.spec.ts` — test login, register, refresh token
-- [ ] `products.service.spec.ts` — test CRUD products, search, filter
-- [ ] `orders.service.spec.ts` — test tạo đơn, cập nhật trạng thái
-- [ ] `cart.service.spec.ts` — test thêm/xóa/cập nhật giỏ hàng
-- [ ] `users.service.spec.ts` — test CRUD users
+- [x] Cài đặt test dependencies nếu chưa có (`@nestjs/testing`, `jest`)
+- [x] `auth.service.spec.ts` — test login, register, refresh token
+- [x] `products.service.spec.ts` — test CRUD products, search, filter
+- [x] `orders.service.spec.ts` — test tạo đơn, cập nhật trạng thái
+- [x] `cart.service.spec.ts` — test thêm/xóa/cập nhật giỏ hàng
+- [x] `users.service.spec.ts` — test CRUD users
 
 ### 4.2 Backend Integration Tests (API Endpoints)
-- [ ] `auth.controller.spec.ts` — test POST /auth/login, /auth/register
-- [ ] `products.controller.spec.ts` — test GET /products, GET /products/:slug
-- [ ] `orders.controller.spec.ts` — test POST /orders, GET /orders
-- [ ] Test authentication guards (unauthorized = 401)
-- [ ] Test validation (invalid input = 400)
+- [x] `auth.controller.spec.ts` — test POST /auth/login, /auth/register
+- [x] `products.controller.spec.ts` — test GET /products, GET /products/:slug
+- [x] `orders.controller.spec.ts` — test POST /orders, GET /orders
+- [x] Test authentication guards (unauthorized = 401)
+- [x] Test validation (invalid input = 400)
 
 ### 4.3 Frontend Tests (Jest + React Testing Library)
-- [ ] Cài đặt `@testing-library/react`, `@testing-library/jest-dom`
-- [ ] Test `ProductCard` — render đúng name, price, image
-- [ ] Test `CartDrawer` — thêm/xóa items
-- [ ] Test `FilterPanel` — apply/reset filters
-- [ ] Test `auth-store` — login/logout state changes
-- [ ] Test `cart-store` — add/remove/update items
+- [x] Cài đặt `@testing-library/react`, `@testing-library/jest-dom`
+- [x] Test `ProductCard` — render đúng name, price, image
+- [x] Test `CartDrawer` — thêm/xóa items
+- [x] Test `FilterPanel` — apply/reset filters
+- [x] Test `auth-store` — login/logout state changes
+- [x] Test `cart-store` — add/remove/update items
 
 ### 4.4 E2E Test (optional — bonus lớn)
-- [ ] Cài đặt Playwright hoặc Cypress
-- [ ] Test flow: Browse → View Product → Add to Cart → Checkout
+- [x] Cài đặt Playwright hoặc Cypress
+- [x] Test flow: Browse → View Product → Add to Cart → Checkout
+
+> **Kết quả xác nhận (17/07/2026)**: Backend Jest 9 suites / 104 tests pass,
+> backend E2E smoke 1/1 pass, frontend Jest 5 suites / 7 tests pass (80,19%
+> statement coverage), Playwright Chromium 1/1 pass với mock API độc lập seed.
 
 ---
 
@@ -143,27 +146,32 @@
 ## ═══════════════════════════════════════════════
 
 ### 5.1 Wishlist đồng bộ Backend
-- [ ] Kết nối `POST /api/wishlists` — thêm sản phẩm
-- [ ] Kết nối `DELETE /api/wishlists/:id` — xóa sản phẩm
-- [ ] Kết nối `GET /api/wishlists` — lấy danh sách
-- [ ] Hiển thị badge count trên Header icon
-- [ ] Nút "Chuyển vào giỏ hàng" từ Wishlist
-- [ ] Toggle wishlist (heart icon) trên ProductCard
+- [x] Kết nối `POST /api/wishlists` — thêm sản phẩm
+- [x] Kết nối `DELETE /api/wishlists/:id` — xóa sản phẩm
+- [x] Kết nối `GET /api/wishlists` — lấy danh sách
+- [x] Hiển thị badge count trên Header icon
+- [x] Nút "Chuyển vào giỏ hàng" từ Wishlist
+- [x] Toggle wishlist (heart icon) trên ProductCard
 
 ### 5.2 Review System
-- [ ] Form viết review: star rating (1-5) + text + (optional) ảnh
-- [ ] API `POST /api/reviews` — gửi review
-- [ ] Validation: chỉ user đã mua sản phẩm mới được review
-- [ ] Hiển thị average rating trên ProductCard
-- [ ] Pagination reviews trên trang sản phẩm
-- [ ] (Nice to have) "Helpful" vote cho review
+- [x] Form viết review: star rating (1-5) + text + (optional) ảnh
+- [x] API `POST /api/reviews` — gửi review
+- [x] Validation: chỉ user đã mua sản phẩm mới được review
+- [x] Hiển thị average rating trên ProductCard
+- [x] Pagination reviews trên trang sản phẩm
+- [x] (Nice to have) "Helpful" vote cho review
 
 ### 5.3 Order Tracking chi tiết
-- [ ] Tạo trang `/account/orders/[id]` — chi tiết đơn hàng
-- [ ] Timeline trạng thái: Đặt → Xác nhận → Đang giao → Hoàn thành
-- [ ] Nút "Hủy đơn hàng" (khi chưa giao)
-- [ ] Nút "Đặt lại" (re-order)
-- [ ] (Nice to have) Download hóa đơn PDF
+- [x] Tạo trang `/account/orders/[id]` — chi tiết đơn hàng
+- [x] Timeline trạng thái: Đặt → Xác nhận → Đang giao → Hoàn thành
+- [x] Nút "Hủy đơn hàng" (khi chưa giao)
+- [x] Nút "Đặt lại" (re-order)
+- [x] (Nice to have) Download hóa đơn PDF
+
+> **Kết quả xác nhận (18/07/2026)**: Wishlist, review và order tracking đã hoàn thiện
+> full-stack. Backend Jest 13 suites / 138 tests pass; frontend Jest 12 suites / 35 tests
+> pass; production build 37 routes; Playwright Chromium 2/2 pass; hóa đơn A4 đã kiểm tra
+> trực quan trên 2 trang và responsive không tràn ngang ở 320px/375px.
 
 ---
 
@@ -245,11 +253,11 @@
 | Phase | Nội dung | Thời gian | Trạng thái |
 |-------|---------|-----------|------------|
 | Phase 0 | Dọn dẹp + sửa docs | 30 phút | ✅ Hoàn thành |
-| Phase 1 | Toast + Loading + Error | 1–2 ngày | ⬜ Chưa bắt đầu |
-| Phase 2 | Search | 1 ngày | ⬜ Chưa bắt đầu |
-| Phase 3 | Tách Admin | 1–2 ngày | ⬜ Chưa bắt đầu |
-| Phase 4 | Tests | 2–3 ngày | ⬜ Chưa bắt đầu |
-| Phase 5 | Wishlist + Reviews + Orders | 2–3 ngày | ⬜ Chưa bắt đầu |
+| Phase 1 | Toast + Loading + Error | 1–2 ngày | ✅ Hoàn thành |
+| Phase 2 | Search | 1 ngày | ✅ Hoàn thành |
+| Phase 3 | Tách Admin | 1–2 ngày | ✅ Hoàn thành |
+| Phase 4 | Tests | 2–3 ngày | ✅ Hoàn thành |
+| Phase 5 | Wishlist + Reviews + Orders | 2–3 ngày | ✅ Hoàn thành |
 | Phase 6 | SEO + Responsive | 1 ngày | ⬜ Chưa bắt đầu |
 | Phase 7 | Nâng cao (bonus) | 2–3 ngày | ⬜ Optional |
 
@@ -279,4 +287,4 @@
 
 **Ghi chú**: Đánh dấu `[x]` khi hoàn thành mỗi task. Chạy `git commit` sau mỗi phase.
 
-**Last Updated**: 13/07/2026
+**Last Updated**: 18/07/2026

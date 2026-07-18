@@ -9,13 +9,16 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
-import { Role, OrderStatus, PaymentMethod } from '@prisma/client';
+import { Role, OrderStatus } from '@prisma/client';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { JwtUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { OrdersService } from './orders.service';
+import { CancelOrderDto } from './dto/cancel-order.dto';
+import { CheckoutOrderDto } from './dto/checkout-order.dto';
+import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
 
 @ApiTags('orders')
 @UseGuards(JwtAuthGuard)
@@ -26,17 +29,7 @@ export class OrdersController {
 
   @Post('checkout')
   @ApiOperation({ summary: 'Place a new order (checkout)' })
-  checkout(
-    @CurrentUser() user: JwtUser,
-    @Body()
-    body: {
-      addressId: string;
-      shippingMethodId?: string;
-      paymentMethod: PaymentMethod;
-      couponCode?: string;
-      notes?: string;
-    },
-  ) {
+  checkout(@CurrentUser() user: JwtUser, @Body() body: CheckoutOrderDto) {
     return this.ordersService.createOrder(user.sub, body);
   }
 
@@ -57,11 +50,13 @@ export class OrdersController {
   }
 
   @Patch(':id/cancel')
-  @ApiOperation({ summary: 'Cancel my order (only PENDING or CONFIRMED)' })
+  @ApiOperation({
+    summary: 'Cancel my order before it is handed to the carrier',
+  })
   cancelOrder(
     @CurrentUser() user: JwtUser,
     @Param('id') id: string,
-    @Body() body: { reason?: string },
+    @Body() body: CancelOrderDto,
   ) {
     return this.ordersService.cancelByUser(id, user.sub, body.reason);
   }
@@ -93,7 +88,7 @@ export class OrdersController {
   @ApiOperation({ summary: '[Admin] Update order status' })
   updateStatus(
     @Param('id') id: string,
-    @Body() body: { status: OrderStatus; note?: string },
+    @Body() body: UpdateOrderStatusDto,
     @CurrentUser() user: JwtUser,
   ) {
     return this.ordersService.updateStatus(

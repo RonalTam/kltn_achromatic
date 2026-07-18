@@ -177,7 +177,10 @@ export class AuthService {
   // ─────────────────────────────────────────────────────────────────────────
   // RESET PASSWORD
   // ─────────────────────────────────────────────────────────────────────────
-  async resetPassword(token: string, newPassword: string): Promise<{ message: string }> {
+  async resetPassword(
+    token: string,
+    newPassword: string,
+  ): Promise<{ message: string }> {
     if (!token || token.length < 10) {
       throw new BadRequestException('Invalid or missing reset token.');
     }
@@ -186,10 +189,7 @@ export class AuthService {
     }
 
     // Hash the incoming token to compare with stored hash
-    const hashedToken = crypto
-      .createHash('sha256')
-      .update(token)
-      .digest('hex');
+    const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
 
     const user = await this.prisma.user.findFirst({
       where: {
@@ -200,7 +200,7 @@ export class AuthService {
 
     if (!user) {
       throw new NotFoundException(
-        'Reset token is invalid or has expired. Please request a new password reset.'
+        'Reset token is invalid or has expired. Please request a new password reset.',
       );
     }
 

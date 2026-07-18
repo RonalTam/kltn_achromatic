@@ -82,17 +82,17 @@ export class ProductQueryDto {
 
   @ApiPropertyOptional({ description: 'Filter to featured only' })
   @IsOptional()
-  @Transform(({ value }) => value === 'true')
+  @Transform(({ value }) => value === true || value === 'true')
   featured?: boolean;
 
   @ApiPropertyOptional({ description: 'Filter to new arrivals only' })
   @IsOptional()
-  @Transform(({ value }) => value === 'true')
+  @Transform(({ value }) => value === true || value === 'true')
   newArrival?: boolean;
 
   @ApiPropertyOptional({ description: 'Filter to best sellers only' })
   @IsOptional()
-  @Transform(({ value }) => value === 'true')
+  @Transform(({ value }) => value === true || value === 'true')
   bestSeller?: boolean;
 
   @ApiPropertyOptional({ enum: SortBy, default: SortBy.NEWEST })

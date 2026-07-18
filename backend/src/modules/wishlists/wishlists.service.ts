@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 
 const WISHLIST_INCLUDE = {
@@ -11,18 +11,36 @@ const WISHLIST_INCLUDE = {
           slug: true,
           basePrice: true,
           comparePrice: true,
+          avgRating: true,
+          reviewCount: true,
           images: {
-            where: { isPrimary: true },
-            select: { url: true, altText: true },
-            take: 1,
+            select: {
+              id: true,
+              url: true,
+              altText: true,
+              isPrimary: true,
+              sortOrder: true,
+            },
+            orderBy: [
+              { isPrimary: 'desc' as const },
+              { sortOrder: 'asc' as const },
+            ],
           },
           variants: {
             where: { isActive: true },
             select: {
               id: true,
-              color: { select: { name: true, hexCode: true } },
-              size: { select: { name: true } },
+              sku: true,
+              price: true,
+              isActive: true,
+              color: { select: { id: true, name: true, hexCode: true } },
+              size: { select: { id: true, name: true, sortOrder: true } },
+              inventory: { select: { quantity: true, reserved: true } },
             },
+          },
+          inventory: {
+            where: { variantId: null },
+            select: { quantity: true, reserved: true },
           },
         },
       },
@@ -51,9 +69,19 @@ export class WishlistsService {
   }
 
   async addItem(userId: string, productId: string) {
-    let wishlist = await this.prisma.wishlist.findUnique({ where: { userId } });
-    if (!wishlist)
-      wishlist = await this.prisma.wishlist.create({ data: { userId } });
+    const product = await this.prisma.product.findFirst({
+      where: { id: productId, isActive: true },
+      select: { id: true },
+    });
+    if (!product) throw new NotFoundException('Product not found');
+
+    const wishlist = await this.prisma.wishlist.upsert({
+      where: { userId },
+      create: { userId },
+      update: {},
+      select: { id: true },
+    });
+
     await this.prisma.wishlistItem.upsert({
       where: { wishlistId_productId: { wishlistId: wishlist.id, productId } },
       create: { wishlistId: wishlist.id, productId },
@@ -62,13 +90,17 @@ export class WishlistsService {
     return this.getWishlist(userId);
   }
 
-  async removeItem(userId: string, productId: string) {
-    const wishlist = await this.prisma.wishlist.findUniqueOrThrow({
-      where: { userId },
+  async removeItem(userId: string, itemOrProductId: string) {
+    const item = await this.prisma.wishlistItem.findFirst({
+      where: {
+        wishlist: { userId },
+        OR: [{ id: itemOrProductId }, { productId: itemOrProductId }],
+      },
+      select: { id: true },
     });
-    await this.prisma.wishlistItem.delete({
-      where: { wishlistId_productId: { wishlistId: wishlist.id, productId } },
-    });
+    if (!item) throw new NotFoundException('Wishlist item not found');
+
+    await this.prisma.wishlistItem.delete({ where: { id: item.id } });
     return this.getWishlist(userId);
   }
 }

@@ -87,6 +87,8 @@ export class AuthController {
     res.clearCookie('refreshToken', { path: '/' });
     // Clear the auth status indicator cookie
     res.clearCookie('auth_status', { path: '/' });
+    // Clear the role hint used by the frontend Proxy
+    res.clearCookie('auth_role', { path: '/' });
     return { message: 'Logged out successfully' };
   }
 
@@ -124,7 +126,7 @@ export class AuthController {
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
       path: '/',
     });
-    // Non-httpOnly auth status indicator — used by the Next.js Edge middleware
+    // Non-httpOnly auth status indicator — used by the Next.js Proxy
     // to quickly detect auth state without exposing the actual token
     res.cookie('auth_status', '1', {
       httpOnly: false,

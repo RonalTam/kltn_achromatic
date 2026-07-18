@@ -25,6 +25,11 @@ const PRODUCT_SELECT = {
     select: { url: true, altText: true },
     take: 1,
   },
+  inventory: {
+    where: { variantId: null },
+    select: { quantity: true, reserved: true },
+    take: 1,
+  },
   variants: {
     where: { isActive: true },
     select: {
@@ -67,14 +72,21 @@ export class ProductsService {
       isActive: true,
     };
 
-    // Text search
-    if (search) {
+    const searchTerm = search?.trim();
+
+    // Text search across the product's main searchable fields.
+    if (searchTerm) {
       where.OR = [
-        { name: { contains: search, mode: 'insensitive' } },
-        { description: { contains: search, mode: 'insensitive' } },
-        { tags: { has: search } },
-        { brand: { name: { contains: search, mode: 'insensitive' } } },
-        { category: { name: { contains: search, mode: 'insensitive' } } },
+        { name: { contains: searchTerm, mode: 'insensitive' } },
+        { description: { contains: searchTerm, mode: 'insensitive' } },
+        { sku: { contains: searchTerm, mode: 'insensitive' } },
+        { tags: { has: searchTerm } },
+        { brand: { name: { contains: searchTerm, mode: 'insensitive' } } },
+        {
+          category: {
+            name: { contains: searchTerm, mode: 'insensitive' },
+          },
+        },
       ];
     }
 
@@ -164,6 +176,7 @@ export class ProductsService {
 
     return {
       data: products,
+      matchCount: total,
       meta: {
         total,
         page,
@@ -186,6 +199,11 @@ export class ProductsService {
         subCategory: { select: { id: true, name: true, slug: true } },
         brand: true,
         images: { orderBy: { sortOrder: 'asc' } },
+        inventory: {
+          where: { variantId: null },
+          select: { quantity: true, reserved: true },
+          take: 1,
+        },
         variants: {
           where: { isActive: true },
           include: {

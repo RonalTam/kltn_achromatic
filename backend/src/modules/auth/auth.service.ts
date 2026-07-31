@@ -4,6 +4,7 @@ import {
   ConflictException,
   BadRequestException,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import * as crypto from 'crypto';
 import { JwtService } from '@nestjs/jwt';
@@ -13,6 +14,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { User, Role } from '@prisma/client';
+import { EmailService } from '../email/email.service';
 
 export type JwtPayload = {
   sub: string;
@@ -31,6 +33,7 @@ export class AuthService {
     private prisma: PrismaService,
     private jwtService: JwtService,
     private configService: ConfigService,
+    @Optional() private readonly emailService?: EmailService,
   ) {}
 
   // ─────────────────────────────────────────────
@@ -64,6 +67,9 @@ export class AuthService {
 
     const tokens = await this.generateTokens(user);
     await this.updateRefreshToken(user.id, tokens.refreshToken);
+    if (this.emailService) {
+      await this.emailService.sendWelcomeEmail(user.email, user.firstName);
+    }
 
     return { user: this.sanitizeUser(user), ...tokens };
   }
@@ -162,14 +168,13 @@ export class AuthService {
       },
     });
 
-    // In production, send email here. For now, log to console.
-    const resetUrl = `http://localhost:3000/account/reset-password?token=${rawToken}`;
-    console.log('\n==============================');
-    console.log('[MOCK EMAIL] Password Reset Link');
-    console.log(`To: ${email}`);
-    console.log(`Reset URL: ${resetUrl}`);
-    console.log(`Expires: ${expiry.toISOString()}`);
-    console.log('==============================\n');
+    if (this.emailService) {
+      await this.emailService.sendPasswordResetEmail(
+        user.email,
+        user.firstName,
+        rawToken,
+      );
+    }
 
     return { message: 'If this email exists, a reset link has been sent.' };
   }

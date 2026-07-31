@@ -896,6 +896,20 @@ model Settings {
   @@map("settings")
 }
 
+model NewsletterSubscriber {
+  id             String    @id @default(cuid())
+  email          String    @unique
+  isActive       Boolean   @default(true)
+  source         String    @default("homepage")
+  subscribedAt   DateTime  @default(now())
+  unsubscribedAt DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([isActive, subscribedAt])
+  @@map("newsletter_subscribers")
+}
+
 // ============================================================
 // AUDIT LOGS
 // ============================================================

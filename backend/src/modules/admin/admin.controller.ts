@@ -5,6 +5,7 @@ import {
   Delete,
   Get,
   Param,
+  ParseEnumPipe,
   Patch,
   Post,
   Query,
@@ -14,19 +15,17 @@ import {
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiConsumes, ApiTags } from '@nestjs/swagger';
-import {
-  BannerPosition,
-  CouponType,
-  Gender,
-  OrderStatus,
-  Role,
-} from '@prisma/client';
+import { BannerPosition, CouponType, Gender, Role } from '@prisma/client';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { JwtUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { UpdateOrderStatusDto } from '../orders/dto/update-order-status.dto';
+import { MerchandisingSection } from '../products/merchandising';
 import { AdminService } from './admin.service';
+import { AdminProductQueryDto } from './dto/admin-product-query.dto';
+import { UpdateMerchandisingDto } from './dto/update-merchandising.dto';
 
 type AdminQuery = {
   page?: number;
@@ -59,6 +58,7 @@ type ProductBody = {
   description: string;
   shortDescription?: string | null;
   categoryId: string;
+  subCategoryId?: string | null;
   brandId?: string | null;
   gender?: Gender;
   material?: string | null;
@@ -149,8 +149,22 @@ export class AdminController {
     return this.adminService.getProductOptions();
   }
 
+  @Get('merchandising')
+  getMerchandising() {
+    return this.adminService.getMerchandising();
+  }
+
+  @Patch('merchandising/:section')
+  updateMerchandising(
+    @Param('section', new ParseEnumPipe(MerchandisingSection))
+    section: MerchandisingSection,
+    @Body() body: UpdateMerchandisingDto,
+  ) {
+    return this.adminService.updateMerchandising(section, body);
+  }
+
   @Get('products')
-  listProducts(@Query() query: AdminQuery) {
+  listProducts(@Query() query: AdminProductQueryDto) {
     return this.adminService.listProducts(query);
   }
 
@@ -231,7 +245,7 @@ export class AdminController {
   @Patch('orders/:id/status')
   updateOrderStatus(
     @Param('id') id: string,
-    @Body() body: { status: OrderStatus; note?: string },
+    @Body() body: UpdateOrderStatusDto,
     @CurrentUser() user: JwtUser,
   ) {
     return this.adminService.updateOrderStatus(

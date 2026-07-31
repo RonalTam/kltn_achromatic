@@ -1,8 +1,8 @@
 # 📋 TODO — Hoàn Thiện Đồ Án Tốt Nghiệp Achromatic
 
-> **Cập nhật**: 18/07/2026
+> **Cập nhật**: 19/07/2026
 > **Tổng thời gian ước tính**: 10–15 ngày  
-> **Trạng thái**: Phase 0 ✅ → Phase 1 ✅ → Phase 2 ✅ → Phase 3 ✅ → Phase 4 ✅ → Phase 5 ✅ → Tiếp theo: Phase 6
+> **Trạng thái**: Phase 0 ✅ → Phase 1 ✅ → Phase 2 ✅ → Phase 3 ✅ → Phase 4 ✅ → Phase 5 ✅ → Phase 6 ✅ → Tiếp theo: Phase 7 (optional)
 
 ---
 
@@ -180,20 +180,26 @@
 ## ═══════════════════════════════════════════════
 
 ### 6.1 SEO
-- [ ] `generateMetadata()` cho trang `/products/[slug]` — dynamic title, description
-- [ ] `generateMetadata()` cho trang `/collections` — theo bộ lọc
-- [ ] Structured data JSON-LD cho sản phẩm (Google rich results)
-- [ ] Tạo `frontend/src/app/sitemap.ts` — auto-generate sitemap.xml
-- [ ] Tạo `frontend/src/app/robots.ts` — robots.txt
-- [ ] Canonical URLs cho mỗi trang
+- [x] `generateMetadata()` cho trang `/products/[slug]` — dynamic title, description
+- [x] `generateMetadata()` cho trang `/collections` — theo bộ lọc
+- [x] Structured data JSON-LD cho sản phẩm (Google rich results)
+- [x] Tạo `frontend/src/app/sitemap.ts` — auto-generate sitemap.xml
+- [x] Tạo `frontend/src/app/robots.ts` — robots.txt
+- [x] Canonical URLs cho mỗi trang
 
 ### 6.2 Responsive & Mobile
-- [ ] Test tất cả pages trên viewport 375px (iPhone SE)
-- [ ] Test trên viewport 768px (iPad)
-- [ ] Mobile filters drawer (thay sidebar)
-- [ ] Touch-friendly buttons (min 44x44px)
-- [ ] Sticky header on scroll (mobile)
-- [ ] Mobile-optimized checkout form
+- [x] Test tất cả pages trên viewport 375px (iPhone SE)
+- [x] Test trên viewport 768px (iPad)
+- [x] Mobile filters drawer (thay sidebar)
+- [x] Touch-friendly buttons (min 44x44px)
+- [x] Sticky header on scroll (mobile)
+- [x] Mobile-optimized checkout form
+
+> **Kết quả xác nhận (19/07/2026)**: Frontend Jest 12 suites / 35 tests pass;
+> production build thành công; Playwright Phase 6 đạt 16/16 case, quét 37 URL giao diện
+> ở cả 375px và 768px, đồng thời kiểm tra metadata, JSON-LD, canonical, sitemap, robots,
+> filter drawer, touch target, sticky header và checkout. QA trực quan đã xác nhận 8 màn
+> đại diện ở hai viewport, không còn tràn ngang hoặc che nội dung.
 
 ---
 
@@ -202,49 +208,57 @@
 ## ═══════════════════════════════════════════════
 
 ### 7.1 Email Notifications
-- [ ] Cài `@nestjs-modules/mailer` + `nodemailer`
-- [ ] Email xác nhận đơn hàng (order confirmation)
-- [ ] Email chào mừng khi đăng ký (welcome email)
-- [ ] Email đặt lại mật khẩu (reset password — endpoint có nhưng chưa gửi email)
-- [ ] Template email HTML đẹp
+- [x] Cài `@nestjs-modules/mailer` + `nodemailer`, cấu hình Gmail SMTP cho local/production
+- [x] Email xác nhận đơn hàng (order confirmation)
+- [x] Email chào mừng khi đăng ký (welcome email)
+- [x] Email đặt lại mật khẩu (reset password — endpoint có nhưng chưa gửi email)
+- [x] Template email HTML đẹp
 
 ### 7.2 Payment Integration
-- [ ] Tích hợp VNPay hoặc MoMo sandbox
-- [ ] Redirect flow thanh toán
-- [ ] Webhook callback xác nhận thanh toán
-- [ ] Cập nhật trạng thái đơn hàng sau thanh toán
+- [x] Tích hợp VNPay hoặc MoMo sandbox
+- [x] Redirect flow thanh toán
+- [x] Webhook callback xác nhận thanh toán
+- [x] Cập nhật trạng thái đơn hàng sau thanh toán
 
 ### 7.3 Performance
-- [ ] Chuyển tất cả `<img>` sang `next/image` (auto optimization)
-- [ ] Bundle analyzer: `npm run build -- --analyze`
-- [ ] Lazy load components không cần thiết (below the fold)
-- [ ] API response caching (headers hoặc Redis)
-- [ ] Database query optimization (Prisma `select`, `include` chỉ field cần)
+- [x] Chuyển tất cả `<img>` sang `next/image` (auto optimization)
+- [x] Bundle analyzer: `npm run analyze:turbopack` (hoặc `npm run analyze`)
+- [x] Lazy load components không cần thiết (below the fold)
+- [x] API response caching (headers hoặc Redis)
+- [x] Database query optimization (Prisma `select`, `include` chỉ field cần)
 
 ### 7.4 Monitoring & Production
-- [ ] Error tracking: Sentry (free tier)
-- [ ] Health check endpoint: `GET /api/health`
-- [ ] Environment variables cho production
-- [ ] Docker Compose hoàn chỉnh (frontend + backend + db)
-- [ ] CI/CD pipeline (GitHub Actions)
+- [x] Error tracking: Sentry (free tier)
+- [x] Health check endpoint: `GET /api/health`
+- [x] Environment variables cho production
+- [x] Docker Compose hoàn chỉnh (frontend + backend + db)
+- [x] CI/CD pipeline (GitHub Actions)
 
 ### 7.5 Accessibility
-- [ ] ARIA labels cho tất cả interactive elements
-- [ ] Keyboard navigation (Tab order)
-- [ ] Focus indicators rõ ràng
-- [ ] Alt text cho tất cả images
-- [ ] Color contrast check (WCAG AA)
+- [x] ARIA labels cho tất cả interactive elements
+- [x] Keyboard navigation (Tab order)
+- [x] Focus indicators rõ ràng
+- [x] Alt text cho tất cả images
+- [x] Color contrast check (WCAG AA)
 
 ### 7.6 Tính năng thêm
-- [ ] Product Quick View modal (xem nhanh không cần vào trang chi tiết)
-- [ ] Recently Viewed Products (lưu localStorage)
-- [ ] Product Recommendations ("Sản phẩm liên quan")
-- [ ] Color swatch hover preview
-- [ ] Newsletter subscription (backend + frontend)
-- [ ] Coupon code input tại checkout
-- [ ] Social media share buttons
-- [ ] FAQ page nội dung chi tiết
-- [ ] Live chat widget (Tawk.to free)
+- [x] Product Quick View modal (xem nhanh không cần vào trang chi tiết)
+- [x] Recently Viewed Products (lưu localStorage)
+- [x] Product Recommendations ("Sản phẩm liên quan")
+- [x] Color swatch hover preview
+- [x] Newsletter subscription (backend + frontend)
+- [x] Coupon code input tại checkout
+- [x] Social media share buttons
+- [x] FAQ page nội dung chi tiết
+- [x] Live chat widget (Tawk.to free)
+
+> **Kết quả xác nhận (23/07/2026)**: Backend Jest 18 suites / 178 tests pass;
+> frontend Jest 14 suites / 46 tests pass; ESLint sạch ở cả hai ứng dụng; production
+> build thành công với 40 routes; Playwright Chromium 24/24 pass. Axe-core quét WCAG
+> A/AA trên trang chủ, collections, chi tiết sản phẩm và FAQ không còn lỗi
+> serious/critical. Bundle analyzer Turbopack đã tạo report tại
+> `frontend/.next/diagnostics/analyze`. Docker/Compose và CI đã hoàn thiện cấu hình;
+> máy kiểm tra hiện không có Docker CLI nên chưa chạy boot container thực tế.
 
 ---
 
@@ -258,8 +272,8 @@
 | Phase 3 | Tách Admin | 1–2 ngày | ✅ Hoàn thành |
 | Phase 4 | Tests | 2–3 ngày | ✅ Hoàn thành |
 | Phase 5 | Wishlist + Reviews + Orders | 2–3 ngày | ✅ Hoàn thành |
-| Phase 6 | SEO + Responsive | 1 ngày | ⬜ Chưa bắt đầu |
-| Phase 7 | Nâng cao (bonus) | 2–3 ngày | ⬜ Optional |
+| Phase 6 | SEO + Responsive | 1 ngày | ✅ Hoàn thành |
+| Phase 7 | Nâng cao (bonus) | 2–3 ngày | ✅ Hoàn thành |
 
 ---
 
@@ -287,4 +301,4 @@
 
 **Ghi chú**: Đánh dấu `[x]` khi hoàn thành mỗi task. Chạy `git commit` sau mỗi phase.
 
-**Last Updated**: 18/07/2026
+**Last Updated**: 23/07/2026

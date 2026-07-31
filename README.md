@@ -164,6 +164,9 @@ Frontend sẽ chạy tại: **http://localhost:3000**
 Xem cấu hình môi trường, database và xử lý lỗi chi tiết tại
 [HUONG_DAN_CHAY_DU_AN.md](./HUONG_DAN_CHAY_DU_AN.md).
 
+Thiết lập gửi email thật ở local và production:
+[GMAIL_SMTP_SETUP.md](./GMAIL_SMTP_SETUP.md).
+
 ---
 
 ## 🗄️ Database

@@ -1,18 +1,20 @@
 import {
   ExceptionFilter,
   Catch,
-  ArgumentsHost,
   HttpException,
   HttpStatus,
   Logger,
 } from '@nestjs/common';
+import type { ArgumentsHost } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { Prisma } from '@prisma/client';
+import { SentryExceptionCaptured } from '@sentry/nestjs';
 
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(HttpExceptionFilter.name);
 
+  @SentryExceptionCaptured()
   catch(exception: unknown, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();

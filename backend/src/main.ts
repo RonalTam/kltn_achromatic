@@ -1,3 +1,4 @@
+import './instrument';
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, VersioningType } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
@@ -95,6 +96,8 @@ async function bootstrap() {
       .addTag('notifications', 'Notifications')
       .addTag('admin', 'Admin dashboard')
       .addTag('analytics', 'Analytics & reports')
+      .addTag('newsletter', 'Newsletter subscriptions')
+      .addTag('health', 'Service readiness')
       .build();
 
     const swaggerPath = configService.get<string>('SWAGGER_PATH', 'docs');

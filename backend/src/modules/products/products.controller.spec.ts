@@ -34,6 +34,7 @@ describe('ProductsController (HTTP integration)', () => {
 
   const productsService = {
     findAll: jest.fn(),
+    getHomeSections: jest.fn(),
     getFilterOptions: jest.fn(),
     findById: jest.fn(),
     findRelated: jest.fn(),
@@ -129,6 +130,22 @@ describe('ProductsController (HTTP integration)', () => {
     expect(productsService.findOne).toHaveBeenCalledWith('linen-shirt');
   });
 
+  it('GET /api/products/home-sections uses the static homepage route', async () => {
+    const sections = {
+      newArrivals: { products: [], limit: 8, source: 'fallback' },
+      bestSellers: { products: [], limit: 8, source: 'fallback' },
+    };
+    productsService.getHomeSections.mockResolvedValue(sections);
+
+    await request(app.getHttpServer())
+      .get('/api/products/home-sections')
+      .expect(200)
+      .expect(sections);
+
+    expect(productsService.getHomeSections).toHaveBeenCalledTimes(1);
+    expect(productsService.findOne).not.toHaveBeenCalled();
+  });
+
   it('rejects invalid product query DTO values with HTTP 400', async () => {
     await request(app.getHttpServer())
       .get('/api/products')
@@ -138,11 +155,11 @@ describe('ProductsController (HTTP integration)', () => {
     expect(productsService.findAll).not.toHaveBeenCalled();
   });
 
-  it('returns HTTP 401 for a protected product write without a JWT', async () => {
+  it('does not expose the legacy product write route', async () => {
     await request(app.getHttpServer())
       .post('/api/products')
       .send({ name: 'Protected product' })
-      .expect(401);
+      .expect(404);
 
     expect(productsService.create).not.toHaveBeenCalled();
   });

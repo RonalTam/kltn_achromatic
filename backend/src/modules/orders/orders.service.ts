@@ -2,9 +2,16 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  Optional,
 } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
-import { OrderStatus, PaymentMethod, Prisma } from '@prisma/client';
+import {
+  OrderStatus,
+  PaymentMethod,
+  PaymentStatus,
+  Prisma,
+} from '@prisma/client';
+import { EmailService } from '../email/email.service';
 
 const ALLOWED_ORDER_STATUS_TRANSITIONS: Record<
   OrderStatus,
@@ -26,8 +33,8 @@ const ALLOWED_ORDER_STATUS_TRANSITIONS: Record<
     OrderStatus.CANCELLED,
   ],
   [OrderStatus.SHIPPING]: [OrderStatus.DELIVERED],
-  [OrderStatus.DELIVERED]: [OrderStatus.COMPLETED, OrderStatus.REFUNDED],
-  [OrderStatus.COMPLETED]: [OrderStatus.REFUNDED],
+  [OrderStatus.DELIVERED]: [OrderStatus.COMPLETED],
+  [OrderStatus.COMPLETED]: [],
   [OrderStatus.CANCELLED]: [],
   [OrderStatus.REFUNDED]: [],
 };
@@ -43,7 +50,10 @@ function isPrismaErrorCode(error: unknown, code: string): boolean {
 
 @Injectable()
 export class OrdersService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    @Optional() private readonly emailService?: EmailService,
+  ) {}
 
   private generateOrderNumber(): string {
     const timestamp = Date.now().toString(36).toUpperCase();
@@ -83,6 +93,19 @@ export class OrdersService {
 
     if (!cart || cart.items.length === 0) {
       throw new BadRequestException('Cart is empty');
+    }
+
+    for (const item of cart.items) {
+      if (!item.product.isActive) {
+        throw new BadRequestException(
+          `Product is no longer available: ${item.product.name}`,
+        );
+      }
+      if (item.variantId && (!item.variant || !item.variant.isActive)) {
+        throw new BadRequestException(
+          `Product variant is no longer available: ${item.product.name}`,
+        );
+      }
     }
 
     // Validate address
@@ -243,9 +266,11 @@ export class OrdersService {
               amount: total,
               currency: 'VND',
               expiresAt:
-                dto.paymentMethod === 'BANK_TRANSFER'
+                dto.paymentMethod === PaymentMethod.BANK_TRANSFER
                   ? new Date(Date.now() + 24 * 60 * 60 * 1000)
-                  : undefined,
+                  : dto.paymentMethod === PaymentMethod.VNPAY
+                    ? new Date(Date.now() + 15 * 60 * 1000)
+                    : undefined,
             },
           },
         },
@@ -275,7 +300,57 @@ export class OrdersService {
       return newOrder;
     });
 
+    // For VNPay orders, defer the confirmation email until payment is verified
+    // via the VNPay callback. For COD / BANK_TRANSFER, send immediately.
+    if (this.emailService && dto.paymentMethod !== PaymentMethod.VNPAY) {
+      const customer = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { email: true, firstName: true },
+      });
+      if (customer) {
+        await this.emailService.sendOrderConfirmationEmail({
+          to: customer.email,
+          firstName: customer.firstName,
+          orderId: order.id,
+          orderNumber: order.orderNumber,
+          total: Number(order.total),
+          items: order.items.map((item) => ({
+            name: item.productName,
+            variant: item.variantName,
+            quantity: item.quantity,
+            unitPrice: Number(item.unitPrice),
+          })),
+        });
+      }
+    }
+
     return order;
+  }
+
+  /**
+   * Send order confirmation email after VNPay payment is verified.
+   * Called by PaymentsService once handleVnpayCallback succeeds.
+   */
+  async sendOrderConfirmationAfterPayment(orderId: string): Promise<void> {
+    if (!this.emailService) return;
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: { items: true, user: { select: { email: true, firstName: true } } },
+    });
+    if (!order || !order.user) return;
+    await this.emailService.sendOrderConfirmationEmail({
+      to: order.user.email,
+      firstName: order.user.firstName,
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      total: Number(order.total),
+      items: order.items.map((item) => ({
+        name: item.productName,
+        variant: item.variantName,
+        quantity: item.quantity,
+        unitPrice: Number(item.unitPrice),
+      })),
+    });
   }
 
   async findByUser(userId: string, page = 1, limit = 10) {
@@ -389,7 +464,10 @@ export class OrdersService {
   async cancelByUser(orderId: string, userId: string, reason?: string) {
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
-      include: { items: true },
+      include: {
+        items: true,
+        payment: { select: { status: true } },
+      },
     });
 
     if (!order) throw new NotFoundException('Không tìm thấy đơn hàng.');
@@ -417,6 +495,12 @@ export class OrdersService {
       );
     }
 
+    if (order.payment?.status === PaymentStatus.COMPLETED) {
+      throw new BadRequestException(
+        'A paid order cannot be cancelled before its payment is refunded',
+      );
+    }
+
     const normalizedReason = reason?.trim() || null;
     const cancelledAt = new Date();
 
@@ -439,6 +523,16 @@ export class OrdersService {
       if (cancellation.count !== 1) {
         throw new BadRequestException(
           'Đơn hàng đã thay đổi trạng thái và không thể hủy. Vui lòng tải lại trang.',
+        );
+      }
+
+      const paymentAfterOrderLock = await tx.payment.findUnique({
+        where: { orderId },
+        select: { status: true },
+      });
+      if (paymentAfterOrderLock?.status === PaymentStatus.COMPLETED) {
+        throw new BadRequestException(
+          'A paid order cannot be cancelled before its payment is refunded',
         );
       }
 
@@ -489,7 +583,10 @@ export class OrdersService {
     return this.prisma.$transaction(async (tx) => {
       const order = await tx.order.findUnique({
         where: { id: orderId },
-        include: { items: true },
+        include: {
+          items: true,
+          payment: { select: { status: true } },
+        },
       });
       if (!order) throw new NotFoundException('Order not found');
 
@@ -500,6 +597,14 @@ export class OrdersService {
       if (!isAllowedTransition) {
         throw new BadRequestException(
           `Cannot change order status from ${order.status} to ${status}`,
+        );
+      }
+      if (
+        status === OrderStatus.CANCELLED &&
+        order.payment?.status === PaymentStatus.COMPLETED
+      ) {
+        throw new BadRequestException(
+          'Paid orders cannot be cancelled without completing the refund workflow',
         );
       }
 
@@ -526,6 +631,17 @@ export class OrdersService {
           );
         }
         throw error;
+      }
+      if (status === OrderStatus.CANCELLED) {
+        const paymentAfterOrderLock = await tx.payment.findUnique({
+          where: { orderId },
+          select: { status: true },
+        });
+        if (paymentAfterOrderLock?.status === PaymentStatus.COMPLETED) {
+          throw new BadRequestException(
+            'Paid orders cannot be cancelled without completing the refund workflow',
+          );
+        }
       }
       await tx.orderStatusHistory.create({
         data: { orderId, status, note, changedBy },

@@ -1,6 +1,7 @@
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { ProductQueryDto, SortBy } from './dto/product-query.dto';
+import { MerchandisingSection } from './merchandising';
 import { ProductsService } from './products.service';
 
 describe('ProductsService', () => {
@@ -12,10 +13,13 @@ describe('ProductsService', () => {
       aggregate: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
+      updateMany: jest.fn(),
     },
     productSize: { findMany: jest.fn() },
     productColor: { findMany: jest.fn() },
     brand: { findMany: jest.fn() },
+    settings: { findMany: jest.fn(), update: jest.fn(), upsert: jest.fn() },
+    $transaction: jest.fn(),
   };
 
   let service: ProductsService;
@@ -24,7 +28,145 @@ describe('ProductsService', () => {
     jest.clearAllMocks();
     prisma.product.count.mockResolvedValue(0);
     prisma.product.findMany.mockResolvedValue([]);
+    prisma.settings.findMany.mockResolvedValue([]);
+    prisma.$transaction.mockImplementation(
+      (callback: (tx: typeof prisma) => unknown) => callback(prisma),
+    );
     service = new ProductsService(prisma as unknown as PrismaService);
+  });
+
+  it('returns ordered manual homepage products and falls back to legacy flags', async () => {
+    prisma.settings.findMany.mockResolvedValue([
+      {
+        key: 'homepage_new_arrival_products',
+        value: JSON.stringify({
+          productIds: ['product-2', 'product-1'],
+          limit: 4,
+        }),
+      },
+    ]);
+    prisma.product.findMany.mockImplementation(
+      (args: { where: { id?: { in: string[] } } }) => {
+        if (args.where.id) {
+          return Promise.resolve([{ id: 'product-1' }, { id: 'product-2' }]);
+        }
+        return Promise.resolve([{ id: 'best-seller-1' }]);
+      },
+    );
+
+    await expect(service.getHomeSections()).resolves.toEqual({
+      newArrivals: {
+        products: [{ id: 'product-2' }, { id: 'product-1' }],
+        limit: 4,
+        source: 'manual',
+      },
+      bestSellers: {
+        products: [{ id: 'best-seller-1' }],
+        limit: 8,
+        source: 'fallback',
+      },
+    });
+    expect(prisma.product.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { isActive: true, isBestSeller: true },
+        take: 8,
+      }),
+    );
+  });
+
+  it('falls back when a merchandising setting is malformed', async () => {
+    prisma.settings.findMany.mockResolvedValue([
+      {
+        key: 'homepage_new_arrival_products',
+        value: '{not-json',
+      },
+    ]);
+
+    const result = await service.getHomeSections();
+
+    expect(result.newArrivals.source).toBe('fallback');
+    expect(prisma.product.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { isActive: true, isNewArrival: true },
+      }),
+    );
+  });
+
+  it('saves ordered merchandising configuration and synchronizes product flags', async () => {
+    prisma.product.findMany.mockResolvedValue([
+      { id: 'product-1' },
+      { id: 'product-2' },
+    ]);
+    prisma.settings.upsert.mockResolvedValue({ id: 'setting-1' });
+    prisma.product.updateMany.mockResolvedValue({ count: 2 });
+
+    const result = await service.updateMerchandisingSection(
+      MerchandisingSection.NEW_ARRIVALS,
+      { productIds: ['product-2', 'product-1'], limit: 4 },
+    );
+
+    expect(result).toEqual({
+      products: [{ id: 'product-2' }, { id: 'product-1' }],
+      limit: 4,
+      source: 'manual',
+    });
+    expect(prisma.settings.upsert).toHaveBeenCalledWith({
+      where: { key: 'homepage_new_arrival_products' },
+      update: {
+        value: JSON.stringify({
+          productIds: ['product-2', 'product-1'],
+          limit: 4,
+        }),
+      },
+      create: expect.objectContaining({
+        key: 'homepage_new_arrival_products',
+        type: 'json',
+        group: 'merchandising',
+      }),
+    });
+    expect(prisma.product.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('rejects inactive, missing, or over-limit merchandising selections', async () => {
+    prisma.product.findMany.mockResolvedValue([{ id: 'product-1' }]);
+
+    await expect(
+      service.updateMerchandisingSection(MerchandisingSection.BEST_SELLERS, {
+        productIds: ['product-1', 'missing-product'],
+        limit: 2,
+      }),
+    ).rejects.toThrow(BadRequestException);
+
+    await expect(
+      service.updateMerchandisingSection(MerchandisingSection.BEST_SELLERS, {
+        productIds: ['product-1', 'product-2'],
+        limit: 1,
+      }),
+    ).rejects.toThrow('cannot exceed the section limit');
+  });
+
+  it('removes a hidden product from saved homepage sections', async () => {
+    prisma.$transaction.mockRejectedValueOnce({ code: 'P2034' });
+    prisma.settings.findMany.mockResolvedValue([
+      {
+        key: 'homepage_new_arrival_products',
+        value: JSON.stringify({
+          productIds: ['product-1', 'product-2'],
+          limit: 4,
+        }),
+      },
+    ]);
+    prisma.settings.update.mockResolvedValue({ id: 'setting-1' });
+
+    await service.removeProductFromMerchandising('product-1');
+
+    expect(prisma.$transaction).toHaveBeenCalledTimes(2);
+    expect(prisma.settings.update).toHaveBeenCalledWith({
+      where: { key: 'homepage_new_arrival_products' },
+      data: {
+        value: JSON.stringify({ productIds: ['product-2'], limit: 4 }),
+      },
+    });
   });
 
   it('searches name, description, SKU, tags, brand, and category', async () => {

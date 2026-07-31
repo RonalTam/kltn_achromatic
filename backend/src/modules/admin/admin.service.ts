@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -16,6 +17,18 @@ import {
   TransactionType,
 } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
+import { OrdersService } from '../orders/orders.service';
+import {
+  MerchandisingSection,
+  type MerchandisingSettingValue,
+} from '../products/merchandising';
+import { ProductsService } from '../products/products.service';
+import {
+  AdminProductQueryDto,
+  AdminProductSortBy,
+  AdminProductStatus,
+  SortOrder,
+} from './dto/admin-product-query.dto';
 
 type AdminListQuery = {
   page?: number;
@@ -48,6 +61,7 @@ type AdminProductPayload = {
   description: string;
   shortDescription?: string | null;
   categoryId: string;
+  subCategoryId?: string | null;
   brandId?: string | null;
   gender?: Gender;
   material?: string | null;
@@ -106,6 +120,7 @@ type AdminBannerPayload = {
 };
 
 const PAGE_LIMIT_MAX = 100;
+const STORE_TIME_ZONE_OFFSET_MS = 7 * 60 * 60 * 1000;
 const MANAGED_SETTING_KEYS = [
   'store_name',
   'store_email',
@@ -116,11 +131,40 @@ const MANAGED_SETTING_KEYS = [
   'order_prefix',
 ] as const;
 
+function storeDateKey(date: Date) {
+  return new Date(date.getTime() + STORE_TIME_ZONE_OFFSET_MS)
+    .toISOString()
+    .slice(0, 10);
+}
+
+function startOfStoreDay(date: Date) {
+  const shifted = new Date(date.getTime() + STORE_TIME_ZONE_OFFSET_MS);
+  return new Date(
+    Date.UTC(
+      shifted.getUTCFullYear(),
+      shifted.getUTCMonth(),
+      shifted.getUTCDate(),
+    ) - STORE_TIME_ZONE_OFFSET_MS,
+  );
+}
+
+function startOfStoreMonth(date: Date, monthOffset = 0) {
+  const shifted = new Date(date.getTime() + STORE_TIME_ZONE_OFFSET_MS);
+  return new Date(
+    Date.UTC(shifted.getUTCFullYear(), shifted.getUTCMonth() + monthOffset, 1) -
+      STORE_TIME_ZONE_OFFSET_MS,
+  );
+}
+
 @Injectable()
 export class AdminService {
   private readonly localProductImagePublicPath = '/product-images';
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private ordersService: OrdersService,
+    private productsService: ProductsService,
+  ) {}
 
   private getPaging(query: AdminListQuery) {
     const page = Math.max(Number(query.page) || 1, 1);
@@ -148,23 +192,168 @@ export class AdminService {
     return `ACH-${token}-${Date.now().toString(36).toUpperCase()}`;
   }
 
+  private validateProductPayload(
+    payload: Partial<AdminProductPayload>,
+    options: {
+      requireRequiredFields: boolean;
+      currentBasePrice?: number;
+      currentComparePrice?: number | null;
+    },
+  ) {
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+      throw new BadRequestException('Product payload must be an object');
+    }
+    const requireNonEmptyString = (key: keyof AdminProductPayload) => {
+      const value = payload[key];
+      if (typeof value !== 'string' || value.trim().length === 0) {
+        throw new BadRequestException(
+          `${String(key)} must be a non-empty string`,
+        );
+      }
+    };
+
+    if (options.requireRequiredFields) {
+      for (const key of ['name', 'description', 'categoryId'] as const) {
+        requireNonEmptyString(key);
+      }
+      if (payload.basePrice === undefined) {
+        throw new BadRequestException('basePrice is required');
+      }
+    } else {
+      for (const key of ['name', 'description', 'categoryId'] as const) {
+        if (payload[key] !== undefined) requireNonEmptyString(key);
+      }
+    }
+
+    for (const key of ['slug', 'sku'] as const) {
+      const value = payload[key];
+      if (value !== undefined && typeof value !== 'string') {
+        throw new BadRequestException(`${key} must be a string`);
+      }
+    }
+    for (const key of ['subCategoryId', 'brandId'] as const) {
+      const value = payload[key];
+      if (
+        value !== undefined &&
+        value !== null &&
+        (typeof value !== 'string' || value.trim().length === 0)
+      ) {
+        throw new BadRequestException(
+          `${key} must be null or a non-empty string`,
+        );
+      }
+    }
+    for (const key of [
+      'isFeatured',
+      'isActive',
+      'isNewArrival',
+      'isBestSeller',
+    ] as const) {
+      const value = payload[key];
+      if (value !== undefined && typeof value !== 'boolean') {
+        throw new BadRequestException(`${key} must be a boolean`);
+      }
+    }
+    if (
+      payload.gender !== undefined &&
+      !Object.values(Gender).includes(payload.gender)
+    ) {
+      throw new BadRequestException('gender is invalid');
+    }
+
+    if (
+      payload.basePrice !== undefined &&
+      (typeof payload.basePrice !== 'number' ||
+        !Number.isFinite(payload.basePrice) ||
+        payload.basePrice <= 0)
+    ) {
+      throw new BadRequestException('basePrice must be a positive number');
+    }
+    if (
+      payload.comparePrice !== undefined &&
+      payload.comparePrice !== null &&
+      (typeof payload.comparePrice !== 'number' ||
+        !Number.isFinite(payload.comparePrice) ||
+        payload.comparePrice < 0)
+    ) {
+      throw new BadRequestException(
+        'comparePrice must be null or a non-negative number',
+      );
+    }
+
+    const effectiveBasePrice =
+      payload.basePrice ?? options.currentBasePrice ?? 0;
+    const effectiveComparePrice =
+      payload.comparePrice !== undefined
+        ? payload.comparePrice
+        : options.currentComparePrice;
+    if (
+      effectiveComparePrice !== undefined &&
+      effectiveComparePrice !== null &&
+      effectiveComparePrice < effectiveBasePrice
+    ) {
+      throw new BadRequestException(
+        'comparePrice cannot be lower than basePrice',
+      );
+    }
+
+    for (const key of ['tags', 'images', 'collectionIds'] as const) {
+      const value = payload[key];
+      if (
+        value !== undefined &&
+        (!Array.isArray(value) ||
+          !value.every((item) => typeof item === 'string'))
+      ) {
+        throw new BadRequestException(`${key} must be an array of strings`);
+      }
+    }
+    if (payload.variants !== undefined && !Array.isArray(payload.variants)) {
+      throw new BadRequestException('variants must be an array');
+    }
+    for (const variant of payload.variants ?? []) {
+      if (!variant || typeof variant !== 'object') {
+        throw new BadRequestException('Each variant must be an object');
+      }
+      for (const key of ['id', 'sku', 'colorId', 'sizeId'] as const) {
+        const value = variant[key];
+        if (
+          value !== undefined &&
+          (typeof value !== 'string' || value.trim().length === 0)
+        ) {
+          throw new BadRequestException(
+            `Variant ${key} must be a non-empty string`,
+          );
+        }
+      }
+      if (
+        variant.price !== undefined &&
+        variant.price !== null &&
+        (typeof variant.price !== 'number' ||
+          !Number.isFinite(variant.price) ||
+          variant.price < 0)
+      ) {
+        throw new BadRequestException(
+          'Variant price must be null or a non-negative number',
+        );
+      }
+      for (const [key, value] of [
+        ['quantity', variant.quantity],
+        ['threshold', variant.threshold],
+      ] as const) {
+        if (value !== undefined && (!Number.isInteger(value) || value < 0)) {
+          throw new BadRequestException(
+            `Variant ${key} must be a non-negative integer`,
+          );
+        }
+      }
+    }
+  }
+
   async getDashboardStats() {
     const now = new Date();
-    const startOfToday = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate(),
-    );
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const endOfLastMonth = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      0,
-      23,
-      59,
-      59,
-    );
+    const startOfToday = startOfStoreDay(now);
+    const startOfMonth = startOfStoreMonth(now);
+    const startOfLastMonth = startOfStoreMonth(now, -1);
 
     const [
       totalUsers,
@@ -174,7 +363,7 @@ export class AdminService {
       totalProducts,
       activeProducts,
       pendingOrders,
-      lowStockProducts,
+      lowStockInventory,
       totalRevenue,
       monthRevenue,
       lastMonthRevenue,
@@ -188,7 +377,15 @@ export class AdminService {
       this.prisma.product.count(),
       this.prisma.product.count({ where: { isActive: true } }),
       this.prisma.order.count({ where: { status: OrderStatus.PENDING } }),
-      this.prisma.inventory.count({ where: { quantity: { lte: 5 } } }),
+      this.prisma.inventory.findMany({
+        where: { product: { isActive: true } },
+        select: {
+          productId: true,
+          quantity: true,
+          reserved: true,
+          threshold: true,
+        },
+      }),
       this.prisma.order.aggregate({
         where: {
           status: { in: [OrderStatus.COMPLETED, OrderStatus.DELIVERED] },
@@ -198,14 +395,25 @@ export class AdminService {
       this.prisma.order.aggregate({
         where: {
           status: { in: [OrderStatus.COMPLETED, OrderStatus.DELIVERED] },
-          createdAt: { gte: startOfMonth },
+          OR: [
+            { deliveredAt: { gte: startOfMonth } },
+            { deliveredAt: null, createdAt: { gte: startOfMonth } },
+          ],
         },
         _sum: { total: true },
       }),
       this.prisma.order.aggregate({
         where: {
           status: { in: [OrderStatus.COMPLETED, OrderStatus.DELIVERED] },
-          createdAt: { gte: startOfLastMonth, lte: endOfLastMonth },
+          OR: [
+            {
+              deliveredAt: { gte: startOfLastMonth, lt: startOfMonth },
+            },
+            {
+              deliveredAt: null,
+              createdAt: { gte: startOfLastMonth, lt: startOfMonth },
+            },
+          ],
         },
         _sum: { total: true },
       }),
@@ -213,6 +421,14 @@ export class AdminService {
 
     const monthRevenueVal = Number(monthRevenue._sum.total || 0);
     const lastMonthRevenueVal = Number(lastMonthRevenue._sum.total || 0);
+    const lowStockProducts = new Set(
+      lowStockInventory
+        .filter(
+          (inventory) =>
+            inventory.quantity - inventory.reserved <= inventory.threshold,
+        )
+        .map((inventory) => inventory.productId),
+    ).size;
     const revenueGrowth =
       lastMonthRevenueVal > 0
         ? ((monthRevenueVal - lastMonthRevenueVal) / lastMonthRevenueVal) * 100
@@ -240,28 +456,42 @@ export class AdminService {
   }
 
   async getRevenueChart(days = 30) {
-    const startDate = new Date();
-    startDate.setDate(startDate.getDate() - days);
+    const parsedDays = Math.trunc(Number(days));
+    const safeDays = Math.min(
+      Math.max(Number.isFinite(parsedDays) ? parsedDays : 30, 1),
+      365,
+    );
+    const today = new Date();
+    const startDate = startOfStoreDay(today);
+    startDate.setUTCDate(startDate.getUTCDate() - (safeDays - 1));
 
     const orders = await this.prisma.order.findMany({
       where: {
-        createdAt: { gte: startDate },
         status: { in: [OrderStatus.COMPLETED, OrderStatus.DELIVERED] },
+        OR: [
+          { deliveredAt: { gte: startDate } },
+          { deliveredAt: null, createdAt: { gte: startDate } },
+        ],
       },
-      select: { total: true, createdAt: true },
-      orderBy: { createdAt: 'asc' },
+      select: { total: true, deliveredAt: true, createdAt: true },
+      orderBy: { deliveredAt: 'asc' },
     });
 
     const dailyMap = new Map<string, number>();
     orders.forEach((order) => {
-      const day = order.createdAt.toISOString().split('T')[0];
-      dailyMap.set(day, (dailyMap.get(day) || 0) + Number(order.total));
+      const day = storeDateKey(order.deliveredAt ?? order.createdAt);
+      const amount = Number(order.total);
+      if (Number.isFinite(amount) && amount > 0) {
+        dailyMap.set(day, (dailyMap.get(day) || 0) + amount);
+      }
     });
 
-    return Array.from(dailyMap.entries()).map(([date, revenue]) => ({
-      date,
-      revenue,
-    }));
+    return Array.from({ length: safeDays }, (_, index) => {
+      const date = new Date(startDate);
+      date.setUTCDate(startDate.getUTCDate() + index);
+      const key = storeDateKey(date);
+      return { date: key, revenue: dailyMap.get(key) || 0 };
+    });
   }
 
   async getTopProducts(limit = 10) {
@@ -298,6 +528,12 @@ export class AdminService {
   async getProductOptions() {
     const [categories, brands, colors, sizes, collections] = await Promise.all([
       this.prisma.category.findMany({
+        include: {
+          subCategories: {
+            where: { isActive: true },
+            orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+          },
+        },
         orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
       }),
       this.prisma.brand.findMany({ orderBy: { name: 'asc' } }),
@@ -312,20 +548,56 @@ export class AdminService {
     return { categories, brands, colors, sizes, collections };
   }
 
-  async listProducts(query: AdminListQuery) {
+  getMerchandising() {
+    return this.productsService.getHomeSections();
+  }
+
+  updateMerchandising(
+    section: MerchandisingSection,
+    value: MerchandisingSettingValue,
+  ) {
+    return this.productsService.updateMerchandisingSection(section, value);
+  }
+
+  async listProducts(query: AdminProductQueryDto) {
     const { page, limit, skip } = this.getPaging(query);
     const where: Prisma.ProductWhereInput = {};
 
-    if (query.search) {
+    const search = query.search?.trim();
+    if (search) {
       where.OR = [
-        { name: { contains: query.search, mode: 'insensitive' } },
-        { sku: { contains: query.search, mode: 'insensitive' } },
-        { category: { name: { contains: query.search, mode: 'insensitive' } } },
+        { name: { contains: search, mode: 'insensitive' } },
+        { sku: { contains: search, mode: 'insensitive' } },
+        { slug: { contains: search, mode: 'insensitive' } },
+        {
+          variants: {
+            some: { sku: { contains: search, mode: 'insensitive' } },
+          },
+        },
+        { brand: { name: { contains: search, mode: 'insensitive' } } },
+        { category: { name: { contains: search, mode: 'insensitive' } } },
+        {
+          subCategory: {
+            name: { contains: search, mode: 'insensitive' },
+          },
+        },
       ];
     }
     if (query.categoryId) where.categoryId = query.categoryId;
-    if (query.status === 'active') where.isActive = true;
-    if (query.status === 'hidden') where.isActive = false;
+    if (query.subCategoryId) where.subCategoryId = query.subCategoryId;
+    if (query.brandId) where.brandId = query.brandId;
+    if (query.gender) where.gender = query.gender;
+    if (query.featured !== undefined) where.isFeatured = query.featured;
+    if (query.newArrival !== undefined) where.isNewArrival = query.newArrival;
+    if (query.bestSeller !== undefined) where.isBestSeller = query.bestSeller;
+    if (query.status === AdminProductStatus.ACTIVE) where.isActive = true;
+    if (query.status === AdminProductStatus.HIDDEN) where.isActive = false;
+
+    const sortBy = query.sortBy || AdminProductSortBy.UPDATED_AT;
+    const sortOrder = query.sortOrder || SortOrder.DESC;
+    const orderBy: Prisma.ProductOrderByWithRelationInput = {
+      [sortBy]: sortOrder,
+    };
 
     const [total, data] = await Promise.all([
       this.prisma.product.count({ where }),
@@ -333,7 +605,19 @@ export class AdminService {
         where,
         include: {
           category: { select: { id: true, name: true, slug: true } },
+          subCategory: { select: { id: true, name: true, slug: true } },
+          brand: { select: { id: true, name: true, slug: true } },
           images: { where: { isPrimary: true }, take: 1 },
+          inventory: {
+            where: { variantId: null },
+            select: {
+              id: true,
+              quantity: true,
+              reserved: true,
+              threshold: true,
+              location: true,
+            },
+          },
           variants: {
             include: {
               color: true,
@@ -350,7 +634,7 @@ export class AdminService {
           },
           _count: { select: { orderItems: true } },
         },
-        orderBy: { updatedAt: 'desc' },
+        orderBy,
         skip,
         take: limit,
       }),
@@ -367,8 +651,10 @@ export class AdminService {
       where: { id },
       include: {
         category: true,
+        subCategory: true,
         brand: true,
         images: { orderBy: { sortOrder: 'asc' } },
+        inventory: { where: { variantId: null } },
         variants: {
           include: {
             color: true,
@@ -386,14 +672,7 @@ export class AdminService {
   }
 
   async createProduct(payload: AdminProductPayload) {
-    if (
-      !payload.name ||
-      !payload.description ||
-      !payload.categoryId ||
-      !payload.basePrice
-    ) {
-      throw new BadRequestException('Missing required product fields');
-    }
+    this.validateProductPayload(payload, { requireRequiredFields: true });
 
     const slug = payload.slug?.trim() || this.slugify(payload.name);
     const sku = payload.sku?.trim() || this.skuFromName(payload.name);
@@ -407,6 +686,7 @@ export class AdminService {
           description: payload.description,
           shortDescription: payload.shortDescription,
           categoryId: payload.categoryId,
+          subCategoryId: payload.subCategoryId || undefined,
           brandId: payload.brandId || undefined,
           gender: payload.gender || Gender.UNISEX,
           material: payload.material,
@@ -472,6 +752,12 @@ export class AdminService {
   async updateProduct(id: string, payload: Partial<AdminProductPayload>) {
     const product = await this.prisma.product.findUnique({ where: { id } });
     if (!product) throw new NotFoundException('Product not found');
+    this.validateProductPayload(payload, {
+      requireRequiredFields: false,
+      currentBasePrice: Number(product.basePrice),
+      currentComparePrice:
+        product.comparePrice === null ? null : Number(product.comparePrice),
+    });
 
     await this.prisma.$transaction(async (tx) => {
       await tx.product.update({
@@ -484,7 +770,9 @@ export class AdminService {
                   payload.slug || this.slugify(payload.name || product.name),
               }
             : {}),
-          ...(payload.sku !== undefined ? { sku: payload.sku } : {}),
+          ...(payload.sku !== undefined
+            ? { sku: payload.sku.trim() || product.sku }
+            : {}),
           ...(payload.description !== undefined
             ? { description: payload.description }
             : {}),
@@ -493,6 +781,9 @@ export class AdminService {
             : {}),
           ...(payload.categoryId !== undefined
             ? { categoryId: payload.categoryId }
+            : {}),
+          ...(payload.subCategoryId !== undefined
+            ? { subCategoryId: payload.subCategoryId || null }
             : {}),
           ...(payload.brandId !== undefined
             ? { brandId: payload.brandId || null }
@@ -567,11 +858,22 @@ export class AdminService {
         await this.replaceProductCollections(tx, id, payload.collectionIds);
     });
 
+    if (payload.isActive === false) {
+      await this.productsService.removeProductFromMerchandising(id);
+    }
+
     return this.getProduct(id);
   }
 
   async toggleProduct(id: string, isActive: boolean) {
-    return this.prisma.product.update({ where: { id }, data: { isActive } });
+    const product = await this.prisma.product.update({
+      where: { id },
+      data: { isActive },
+    });
+    if (!isActive) {
+      await this.productsService.removeProductFromMerchandising(id);
+    }
+    return product;
   }
 
   async removeProduct(id: string) {
@@ -699,21 +1001,155 @@ export class AdminService {
     const keptVariantIds = variants
       .map((item) => item.id)
       .filter((id): id is string => Boolean(id));
+    if (new Set(keptVariantIds).size !== keptVariantIds.length) {
+      throw new BadRequestException('Duplicate variant IDs are not allowed');
+    }
+
+    const preparedVariants: Array<
+      Omit<AdminProductVariantInput, 'sku' | 'colorId' | 'sizeId'> & {
+        sku: string;
+        colorId: string | null;
+        sizeId: string | null;
+      }
+    > = [];
+    for (const [index, item] of variants.entries()) {
+      if (item.id && item.quantity !== undefined) {
+        throw new BadRequestException(
+          'Existing variant quantity must be changed through inventory adjustment',
+        );
+      }
+      if (
+        item.quantity !== undefined &&
+        (!Number.isInteger(item.quantity) || item.quantity < 0)
+      ) {
+        throw new BadRequestException(
+          'Variant inventory quantity must be a non-negative integer',
+        );
+      }
+      if (
+        item.threshold !== undefined &&
+        (!Number.isInteger(item.threshold) || item.threshold < 0)
+      ) {
+        throw new BadRequestException(
+          'Variant inventory threshold must be a non-negative integer',
+        );
+      }
+      const colorId =
+        item.colorId ||
+        (item.colorName
+          ? await this.ensureColor(tx, item.colorName, item.colorHex)
+          : null);
+      const sizeId =
+        item.sizeId ||
+        (item.sizeName ? await this.ensureSize(tx, item.sizeName) : null);
+      const sku = item.sku?.trim() || `${productSku}-${index + 1}`;
+      preparedVariants.push({ ...item, sku, colorId, sizeId });
+    }
+
+    const normalizedSkus = preparedVariants.map((item) =>
+      item.sku.toLocaleUpperCase(),
+    );
+    if (new Set(normalizedSkus).size !== normalizedSkus.length) {
+      throw new BadRequestException('Duplicate variant SKUs are not allowed');
+    }
+
+    const combinations = preparedVariants.map(
+      (item) => `${item.colorId ?? '<none>'}:${item.sizeId ?? '<none>'}`,
+    );
+    if (new Set(combinations).size !== combinations.length) {
+      throw new BadRequestException(
+        'Duplicate color and size combinations are not allowed',
+      );
+    }
+
+    if (keptVariantIds.length > 0) {
+      const existingById = await tx.productVariant.findMany({
+        where: { id: { in: keptVariantIds } },
+        select: { id: true, productId: true },
+      });
+      const existingByIdMap = new Map(
+        existingById.map((variant) => [variant.id, variant]),
+      );
+      for (const variantId of keptVariantIds) {
+        const existing = existingByIdMap.get(variantId);
+        if (!existing) {
+          throw new BadRequestException(`Variant does not exist: ${variantId}`);
+        }
+        if (existing.productId !== productId) {
+          throw new BadRequestException(
+            `Variant does not belong to this product: ${variantId}`,
+          );
+        }
+      }
+    }
+
+    if (preparedVariants.length > 0) {
+      const existingBySku = await tx.productVariant.findMany({
+        where: {
+          OR: preparedVariants.map((item) => ({
+            sku: { equals: item.sku, mode: 'insensitive' as const },
+          })),
+        },
+        select: { id: true, sku: true },
+      });
+      for (const item of preparedVariants) {
+        const normalizedSku = item.sku.toLocaleUpperCase();
+        const conflictingVariant = existingBySku.find(
+          (variant) =>
+            variant.sku.toLocaleUpperCase() === normalizedSku &&
+            variant.id !== item.id,
+        );
+        if (conflictingVariant) {
+          throw new ConflictException(
+            `Variant SKU already belongs to another variant: ${item.sku}`,
+          );
+        }
+      }
+    }
+
     const removedVariants = await tx.productVariant.findMany({
       where: {
         productId,
         ...(keptVariantIds.length > 0 ? { id: { notIn: keptVariantIds } } : {}),
       },
-      select: { id: true },
+      select: { id: true, colorId: true, sizeId: true },
     });
 
     for (const removed of removedVariants) {
-      const [orderItems, cartItems] = await Promise.all([
+      const [orderItems, cartItems, inventory] = await Promise.all([
         tx.orderItem.count({ where: { variantId: removed.id } }),
         tx.cartItem.count({ where: { variantId: removed.id } }),
+        tx.inventory.findFirst({
+          where: { variantId: removed.id },
+          select: {
+            quantity: true,
+            reserved: true,
+            _count: { select: { transactions: true } },
+          },
+        }),
       ]);
 
-      if (orderItems > 0 || cartItems > 0) {
+      const mustRetain =
+        orderItems > 0 ||
+        cartItems > 0 ||
+        Boolean(
+          inventory &&
+          (inventory.quantity !== 0 ||
+            inventory.reserved !== 0 ||
+            inventory._count.transactions > 0),
+        );
+      if (mustRetain) {
+        const removedCombination = `${removed.colorId ?? '<none>'}:${removed.sizeId ?? '<none>'}`;
+        const duplicatesRetainedCombination = preparedVariants.some(
+          (item) =>
+            `${item.colorId ?? '<none>'}:${item.sizeId ?? '<none>'}` ===
+            removedCombination,
+        );
+        if (duplicatesRetainedCombination) {
+          throw new BadRequestException(
+            'Cannot reuse the color and size of a referenced variant without keeping its ID',
+          );
+        }
         await tx.productVariant.update({
           where: { id: removed.id },
           data: { isActive: false },
@@ -724,44 +1160,25 @@ export class AdminService {
       }
     }
 
-    for (const [index, item] of variants.entries()) {
-      const colorId =
-        item.colorId ||
-        (item.colorName
-          ? await this.ensureColor(tx, item.colorName, item.colorHex)
-          : null);
-      const sizeId =
-        item.sizeId ||
-        (item.sizeName ? await this.ensureSize(tx, item.sizeName) : null);
-      const sku = item.sku?.trim() || `${productSku}-${index + 1}`;
-
+    for (const item of preparedVariants) {
       const variant = item.id
         ? await tx.productVariant.update({
             where: { id: item.id },
             data: {
-              sku,
-              colorId,
-              sizeId,
+              sku: item.sku,
+              colorId: item.colorId,
+              sizeId: item.sizeId,
               price: item.price ?? null,
               imageUrl: item.imageUrl,
               isActive: item.isActive ?? true,
             },
           })
-        : await tx.productVariant.upsert({
-            where: { sku },
-            update: {
+        : await tx.productVariant.create({
+            data: {
               productId,
-              colorId,
-              sizeId,
-              price: item.price ?? null,
-              imageUrl: item.imageUrl,
-              isActive: item.isActive ?? true,
-            },
-            create: {
-              productId,
-              sku,
-              colorId,
-              sizeId,
+              sku: item.sku,
+              colorId: item.colorId,
+              sizeId: item.sizeId,
               price: item.price ?? null,
               imageUrl: item.imageUrl,
               isActive: item.isActive ?? true,
@@ -773,7 +1190,7 @@ export class AdminService {
         item.threshold !== undefined ||
         item.location !== undefined
       ) {
-        await tx.inventory.upsert({
+        const inventory = await tx.inventory.upsert({
           where: { productId_variantId: { productId, variantId: variant.id } },
           update: {
             ...(item.quantity !== undefined ? { quantity: item.quantity } : {}),
@@ -790,6 +1207,19 @@ export class AdminService {
             location: item.location,
           },
         });
+        const initialQuantity = item.id ? 0 : (item.quantity ?? 0);
+        if (initialQuantity > 0) {
+          await tx.inventoryTransaction.create({
+            data: {
+              inventoryId: inventory.id,
+              type: TransactionType.ADJUSTMENT,
+              quantity: initialQuantity,
+              previousQty: 0,
+              newQty: initialQuantity,
+              reason: 'Initial stock for new product variant',
+            },
+          });
+        }
       }
     }
   }
@@ -967,90 +1397,7 @@ export class AdminService {
     note?: string,
     changedBy?: string,
   ) {
-    return this.prisma.$transaction(async (tx) => {
-      const order = await tx.order.findUnique({
-        where: { id },
-        include: { items: true },
-      });
-      if (!order) throw new NotFoundException('Order not found');
-      if (
-        order.status === OrderStatus.DELIVERED &&
-        status === OrderStatus.CANCELLED
-      ) {
-        throw new BadRequestException('Delivered orders cannot be cancelled');
-      }
-
-      const updated = await tx.order.update({
-        where: { id },
-        data: {
-          status,
-          ...(status === OrderStatus.DELIVERED
-            ? { deliveredAt: new Date() }
-            : {}),
-          ...(status === OrderStatus.CANCELLED
-            ? { cancelledAt: new Date() }
-            : {}),
-        },
-      });
-
-      await tx.orderStatusHistory.create({
-        data: { orderId: id, status, note, changedBy },
-      });
-
-      if (
-        status === OrderStatus.CANCELLED &&
-        order.status !== OrderStatus.CANCELLED
-      ) {
-        for (const item of order.items) {
-          if (item.variantId) {
-            await tx.inventory.updateMany({
-              where: {
-                variantId: item.variantId,
-                reserved: { gte: item.quantity },
-              },
-              data: { reserved: { decrement: item.quantity } },
-            });
-          }
-        }
-      }
-
-      if (
-        status === OrderStatus.DELIVERED &&
-        order.status !== OrderStatus.DELIVERED
-      ) {
-        for (const item of order.items) {
-          if (item.variantId) {
-            await tx.inventory.updateMany({
-              where: {
-                variantId: item.variantId,
-                quantity: { gte: item.quantity },
-                reserved: { gte: item.quantity },
-              },
-              data: {
-                quantity: { decrement: item.quantity },
-                reserved: { decrement: item.quantity },
-              },
-            });
-          }
-        }
-
-        const grouped = order.items.reduce(
-          (acc, item) => {
-            acc[item.productId] = (acc[item.productId] || 0) + item.quantity;
-            return acc;
-          },
-          {} as Record<string, number>,
-        );
-        for (const [productId, qty] of Object.entries(grouped)) {
-          await tx.product.update({
-            where: { id: productId },
-            data: { soldCount: { increment: qty } },
-          });
-        }
-      }
-
-      return updated;
-    });
+    return this.ordersService.updateStatus(id, status, note, changedBy);
   }
 
   async listCustomers(query: AdminListQuery) {
@@ -1131,6 +1478,14 @@ export class AdminService {
   }
 
   async setCustomerActive(id: string, isActive: boolean) {
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+      select: { role: true },
+    });
+    if (!user) throw new NotFoundException('User not found');
+    if (user.role !== Role.CUSTOMER) {
+      throw new ForbiddenException('Cannot modify active status of non-customer accounts');
+    }
     return this.prisma.user.update({ where: { id }, data: { isActive } });
   }
 
@@ -1144,7 +1499,24 @@ export class AdminService {
         { variant: { sku: { contains: query.search, mode: 'insensitive' } } },
       ];
     }
-    if (query.status === 'low') where.quantity = { lte: 5 };
+    if (query.status === 'low') {
+      const inventoryLevels = await this.prisma.inventory.findMany({
+        select: {
+          id: true,
+          quantity: true,
+          reserved: true,
+          threshold: true,
+        },
+      });
+      where.id = {
+        in: inventoryLevels
+          .filter(
+            (inventory) =>
+              inventory.quantity - inventory.reserved <= inventory.threshold,
+          )
+          .map((inventory) => inventory.id),
+      };
+    }
 
     const [total, data] = await Promise.all([
       this.prisma.inventory.count({ where }),
@@ -1179,32 +1551,53 @@ export class AdminService {
     reason: string,
     performedBy: string,
   ) {
-    const inventory = await this.prisma.inventory.findUniqueOrThrow({
-      where: { id },
-    });
-    const previousQty = inventory.quantity;
-    const newQty = previousQty + quantity;
-    if (newQty < 0) {
-      throw new BadRequestException('Inventory quantity cannot be negative');
+    if (!Number.isInteger(quantity) || quantity === 0) {
+      throw new BadRequestException(
+        'Inventory adjustment must be a non-zero integer',
+      );
+    }
+    const normalizedReason = typeof reason === 'string' ? reason.trim() : '';
+    if (!normalizedReason) {
+      throw new BadRequestException('Inventory adjustment reason is required');
     }
 
     return this.prisma.$transaction(async (tx) => {
-      const updated = await tx.inventory.update({
-        where: { id },
+      const inventory = await tx.inventory.findUnique({ where: { id } });
+      if (!inventory) throw new NotFoundException('Inventory not found');
+
+      const previousQty = inventory.quantity;
+      const newQty = previousQty + quantity;
+      if (newQty < inventory.reserved) {
+        throw new BadRequestException(
+          `Inventory quantity cannot be lower than its reserved quantity (${inventory.reserved})`,
+        );
+      }
+
+      const write = await tx.inventory.updateMany({
+        where: {
+          id,
+          quantity: previousQty,
+          reserved: { lte: newQty },
+        },
         data: { quantity: { increment: quantity } },
       });
+      if (write.count !== 1) {
+        throw new BadRequestException(
+          'Inventory changed concurrently. Please reload and try again.',
+        );
+      }
       await tx.inventoryTransaction.create({
         data: {
           inventoryId: id,
-          type: quantity > 0 ? TransactionType.IN : TransactionType.OUT,
+          type: TransactionType.ADJUSTMENT,
           quantity: Math.abs(quantity),
           previousQty,
           newQty,
-          reason,
+          reason: normalizedReason,
           performedBy,
         },
       });
-      return updated;
+      return tx.inventory.findUniqueOrThrow({ where: { id } });
     });
   }
 
@@ -1236,6 +1629,32 @@ export class AdminService {
   }
 
   async createCoupon(payload: AdminCouponPayload) {
+    // Validate value for non-FREE_SHIPPING types
+    if (payload.type !== CouponType.FREE_SHIPPING && (typeof payload.value !== 'number' || payload.value <= 0)) {
+      throw new BadRequestException('Coupon value must be a positive number for this discount type');
+    }
+    if (payload.type === CouponType.PERCENTAGE && payload.value > 100) {
+      throw new BadRequestException('Percentage coupon value cannot exceed 100');
+    }
+    if (typeof payload.usagePerUser === 'number' && (!Number.isInteger(payload.usagePerUser) || payload.usagePerUser < 1)) {
+      throw new BadRequestException('usagePerUser must be a positive integer');
+    }
+    if (payload.startsAt && payload.expiresAt) {
+      const starts = new Date(payload.startsAt);
+      const expires = new Date(payload.expiresAt);
+      if (isNaN(starts.getTime()) || isNaN(expires.getTime())) {
+        throw new BadRequestException('Invalid date format for startsAt or expiresAt');
+      }
+      if (expires <= starts) {
+        throw new BadRequestException('expiresAt must be after startsAt');
+      }
+    }
+    if (payload.expiresAt && !payload.startsAt) {
+      const expires = new Date(payload.expiresAt);
+      if (isNaN(expires.getTime())) {
+        throw new BadRequestException('Invalid date format for expiresAt');
+      }
+    }
     return this.prisma.coupon.create({
       data: {
         code: payload.code.toUpperCase(),
@@ -1256,6 +1675,33 @@ export class AdminService {
   }
 
   async updateCoupon(id: string, payload: Partial<AdminCouponPayload>) {
+    if (payload.type !== undefined && payload.value !== undefined) {
+      if (payload.type !== CouponType.FREE_SHIPPING && (typeof payload.value !== 'number' || payload.value <= 0)) {
+        throw new BadRequestException('Coupon value must be a positive number for this discount type');
+      }
+      if (payload.type === CouponType.PERCENTAGE && payload.value > 100) {
+        throw new BadRequestException('Percentage coupon value cannot exceed 100');
+      }
+    } else if (payload.value !== undefined && payload.value !== null) {
+      // Only value is being updated — fetch current type to validate
+      const current = await this.prisma.coupon.findUnique({ where: { id }, select: { type: true } });
+      if (current && current.type !== CouponType.FREE_SHIPPING && payload.value <= 0) {
+        throw new BadRequestException('Coupon value must be a positive number');
+      }
+      if (current && current.type === CouponType.PERCENTAGE && payload.value > 100) {
+        throw new BadRequestException('Percentage coupon value cannot exceed 100');
+      }
+    }
+    if (payload.usagePerUser !== undefined && (!Number.isInteger(payload.usagePerUser) || payload.usagePerUser < 1)) {
+      throw new BadRequestException('usagePerUser must be a positive integer');
+    }
+    if (payload.startsAt !== undefined && payload.expiresAt !== undefined && payload.startsAt && payload.expiresAt) {
+      const starts = new Date(payload.startsAt);
+      const expires = new Date(payload.expiresAt);
+      if (!isNaN(starts.getTime()) && !isNaN(expires.getTime()) && expires <= starts) {
+        throw new BadRequestException('expiresAt must be after startsAt');
+      }
+    }
     return this.prisma.coupon.update({
       where: { id },
       data: {

@@ -1,5 +1,5 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
-import { OrderStatus, PaymentMethod } from '@prisma/client';
+import { OrderStatus, PaymentMethod, PaymentStatus } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { OrdersService } from './orders.service';
 
@@ -30,6 +30,9 @@ describe('OrdersService inventory reservation', () => {
     },
     product: {
       update: jest.fn(),
+    },
+    payment: {
+      findUnique: jest.fn(),
     },
     $executeRaw: jest.fn(),
   };
@@ -71,12 +74,14 @@ describe('OrdersService inventory reservation', () => {
           name: 'Áo thử nghiệm',
           sku: 'PRODUCT-SKU',
           basePrice: 100000,
+          isActive: true,
         },
         variant: variantId
           ? {
               id: variantId,
               sku: 'VARIANT-SKU',
               price: null,
+              isActive: true,
               color: null,
               size: null,
               inventory: [],
@@ -93,6 +98,7 @@ describe('OrdersService inventory reservation', () => {
       (callback: (client: typeof tx) => Promise<unknown>) => callback(tx),
     );
     tx.order.updateMany.mockResolvedValue({ count: 1 });
+    tx.payment.findUnique.mockResolvedValue(null);
     service = new OrdersService(prisma as unknown as PrismaService);
   });
 
@@ -124,6 +130,38 @@ describe('OrdersService inventory reservation', () => {
     expect(prisma.userAddress.findUnique).toHaveBeenCalledWith({
       where: { id: 'foreign-address', userId: 'user-1' },
     });
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('rejects checkout when a cart product was hidden by admin', async () => {
+    const cart = makeCart(1);
+    cart.items[0].product.isActive = false;
+    prisma.cart.findUnique.mockResolvedValue(cart);
+
+    await expect(
+      service.createOrder('user-1', {
+        addressId: 'address-1',
+        paymentMethod: PaymentMethod.COD,
+      }),
+    ).rejects.toThrow('Product is no longer available');
+
+    expect(prisma.userAddress.findUnique).not.toHaveBeenCalled();
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('rejects checkout when a cart variant was disabled by admin', async () => {
+    const cart = makeCart(1);
+    if (cart.items[0].variant) cart.items[0].variant.isActive = false;
+    prisma.cart.findUnique.mockResolvedValue(cart);
+
+    await expect(
+      service.createOrder('user-1', {
+        addressId: 'address-1',
+        paymentMethod: PaymentMethod.COD,
+      }),
+    ).rejects.toThrow('Product variant is no longer available');
+
+    expect(prisma.userAddress.findUnique).not.toHaveBeenCalled();
     expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 
@@ -588,7 +626,10 @@ describe('OrdersService inventory reservation', () => {
 
     expect(prisma.order.findUnique).toHaveBeenCalledWith({
       where: { id: 'order-1' },
-      include: { items: true },
+      include: {
+        items: true,
+        payment: { select: { status: true } },
+      },
     });
     expect(tx.inventory.updateMany).toHaveBeenCalledWith({
       where: {
@@ -668,6 +709,43 @@ describe('OrdersService inventory reservation', () => {
     expect(tx.inventory.updateMany).not.toHaveBeenCalled();
   });
 
+  it('rejects customer cancellation for an order with completed payment', async () => {
+    prisma.order.findUnique.mockResolvedValue({
+      id: 'order-1',
+      userId: 'user-1',
+      status: OrderStatus.CONFIRMED,
+      payment: { status: PaymentStatus.COMPLETED },
+      items: [],
+    });
+
+    await expect(service.cancelByUser('order-1', 'user-1')).rejects.toThrow(
+      'cannot be cancelled before its payment is refunded',
+    );
+
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(tx.order.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('rechecks payment after locking the order during cancellation', async () => {
+    prisma.order.findUnique.mockResolvedValue({
+      id: 'order-1',
+      userId: 'user-1',
+      status: OrderStatus.CONFIRMED,
+      payment: { status: PaymentStatus.PENDING },
+      items: [],
+    });
+    tx.payment.findUnique.mockResolvedValue({
+      status: PaymentStatus.COMPLETED,
+    });
+
+    await expect(service.cancelByUser('order-1', 'user-1')).rejects.toThrow(
+      'cannot be cancelled before its payment is refunded',
+    );
+
+    expect(tx.order.updateMany).toHaveBeenCalled();
+    expect(tx.orderStatusHistory.create).not.toHaveBeenCalled();
+  });
+
   it('does not release inventory when a concurrent request wins cancellation', async () => {
     prisma.order.findUnique.mockResolvedValue({
       id: 'order-1',
@@ -744,6 +822,37 @@ describe('OrdersService inventory reservation', () => {
     await expect(
       service.updateStatus('order-1', OrderStatus.SHIPPING),
     ).rejects.toThrow(BadRequestException);
+
+    expect(tx.order.update).not.toHaveBeenCalled();
+    expect(tx.orderStatusHistory.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects marking an order refunded without the payment refund workflow', async () => {
+    tx.order.findUnique.mockResolvedValue({
+      id: 'order-1',
+      status: OrderStatus.COMPLETED,
+      items: [],
+    });
+
+    await expect(
+      service.updateStatus('order-1', OrderStatus.REFUNDED),
+    ).rejects.toThrow(BadRequestException);
+
+    expect(tx.order.update).not.toHaveBeenCalled();
+    expect(tx.orderStatusHistory.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects cancelling an order whose payment is completed', async () => {
+    tx.order.findUnique.mockResolvedValue({
+      id: 'order-1',
+      status: OrderStatus.CONFIRMED,
+      payment: { status: PaymentStatus.COMPLETED },
+      items: [],
+    });
+
+    await expect(
+      service.updateStatus('order-1', OrderStatus.CANCELLED),
+    ).rejects.toThrow('cannot be cancelled without completing the refund');
 
     expect(tx.order.update).not.toHaveBeenCalled();
     expect(tx.orderStatusHistory.create).not.toHaveBeenCalled();

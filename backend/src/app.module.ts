@@ -23,13 +23,26 @@ import { AdminModule } from './modules/admin/admin.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { CloudinaryModule } from './modules/cloudinary/cloudinary.module';
 import { validate } from './config/env.validation';
+import { SentryModule } from '@sentry/nestjs/setup';
+import { EmailModule } from './modules/email/email.module';
+import { NewsletterModule } from './modules/newsletter/newsletter.module';
+import { HealthModule } from './modules/health/health.module';
+
+const runtimeEnvironment = process.env.NODE_ENV ?? 'development';
 
 @Module({
   imports: [
+    SentryModule.forRoot(),
+
     // Config — load env and validate
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: ['.env.local', '.env'],
+      envFilePath: [
+        `.env.${runtimeEnvironment}.local`,
+        `.env.${runtimeEnvironment}`,
+        '.env.local',
+        '.env',
+      ],
       validate,
     }),
 
@@ -71,6 +84,9 @@ import { validate } from './config/env.validation';
     AdminModule,
     AnalyticsModule,
     CloudinaryModule,
+    EmailModule,
+    NewsletterModule,
+    HealthModule,
   ],
 })
 export class AppModule {}

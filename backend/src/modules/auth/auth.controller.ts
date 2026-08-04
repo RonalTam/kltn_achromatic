@@ -15,8 +15,10 @@ import {
   ApiOperation,
   ApiBearerAuth,
   ApiCookieAuth,
+  ApiExcludeEndpoint,
 } from '@nestjs/swagger';
 import type { Request, Response } from 'express';
+import { AuthGuard } from '@nestjs/passport';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
@@ -122,7 +124,7 @@ export class AuthController {
     res.cookie('refreshToken', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      sameSite: 'lax', // 'lax' allows cookie after OAuth redirect
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
       path: '/',
     });
@@ -131,9 +133,78 @@ export class AuthController {
     res.cookie('auth_status', '1', {
       httpOnly: false,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      sameSite: 'lax',
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
       path: '/',
     });
+  }
+
+  // ─────────────────────────────────────
+  // GOOGLE OAUTH
+  // ─────────────────────────────────────
+
+  @Public()
+  @Get('google')
+  @UseGuards(AuthGuard('google'))
+  @ApiOperation({ summary: 'Redirect to Google OAuth consent screen' })
+  googleAuth() {
+    // Passport redirects automatically — this handler is never called
+  }
+
+  @Public()
+  @Get('google/callback')
+  @UseGuards(AuthGuard('google'))
+  @ApiExcludeEndpoint()
+  async googleCallback(
+    @Req() req: Request & { user: { user: any; accessToken: string; refreshToken: string } },
+    @Res() res: Response,
+  ) {
+    return this.handleOAuthCallback(req, res);
+  }
+
+  // ─────────────────────────────────────
+  // FACEBOOK OAUTH
+  // ─────────────────────────────────────
+
+  @Public()
+  @Get('facebook')
+  @UseGuards(AuthGuard('facebook'))
+  @ApiOperation({ summary: 'Redirect to Facebook OAuth consent screen' })
+  facebookAuth() {
+    // Passport redirects automatically — this handler is never called
+  }
+
+  @Public()
+  @Get('facebook/callback')
+  @UseGuards(AuthGuard('facebook'))
+  @ApiExcludeEndpoint()
+  async facebookCallback(
+    @Req() req: Request & { user: { user: any; accessToken: string; refreshToken: string } },
+    @Res() res: Response,
+  ) {
+    return this.handleOAuthCallback(req, res);
+  }
+
+  // ─────────────────────────────────────
+  // SHARED OAUTH CALLBACK
+  // ─────────────────────────────────────
+
+  private handleOAuthCallback(
+    req: Request & { user: { user: any; accessToken: string; refreshToken: string } },
+    res: Response,
+  ) {
+    const { user, accessToken, refreshToken } = req.user;
+    const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:3000';
+
+    // Set httpOnly refresh token cookie
+    this.setRefreshTokenCookie(res, refreshToken);
+
+    // Encode user safely for query param
+    const userParam = encodeURIComponent(JSON.stringify(user));
+
+    // Redirect to frontend callback handler
+    return res.redirect(
+      `${frontendUrl}/account/oauth/callback?token=${accessToken}&user=${userParam}`,
+    );
   }
 }

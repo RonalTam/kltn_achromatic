@@ -58,6 +58,7 @@ export class UsersService {
     const user = await this.prisma.user.findUniqueOrThrow({
       where: { id: userId },
     });
+    if (!user.password) throw new NotFoundException('Social login accounts cannot change password here. Please use the provider settings.');
     const isMatch = await bcrypt.compare(currentPassword, user.password);
     if (!isMatch) throw new NotFoundException('Current password is incorrect');
     const hashed = await bcrypt.hash(newPassword, 12);

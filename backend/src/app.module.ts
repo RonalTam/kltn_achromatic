@@ -27,6 +27,7 @@ import { SentryModule } from '@sentry/nestjs/setup';
 import { EmailModule } from './modules/email/email.module';
 import { NewsletterModule } from './modules/newsletter/newsletter.module';
 import { HealthModule } from './modules/health/health.module';
+import { ChatModule } from './modules/chat/chat.module';
 
 const runtimeEnvironment = process.env.NODE_ENV ?? 'development';
 
@@ -87,6 +88,7 @@ const runtimeEnvironment = process.env.NODE_ENV ?? 'development';
     EmailModule,
     NewsletterModule,
     HealthModule,
+    ChatModule,
   ],
 })
 export class AppModule {}

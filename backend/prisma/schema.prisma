@@ -92,28 +92,52 @@ enum BannerPosition {
   POPUP
 }
 
+enum ChatSessionStatus {
+  BOT_HANDLING
+  STAFF_REQUESTED
+  STAFF_HANDLING
+  CLOSED
+}
+
+enum AuthProvider {
+  LOCAL
+  GOOGLE
+  FACEBOOK
+}
+
+
+enum ChatMessageSender {
+  USER
+  BOT
+  STAFF
+  SYSTEM
+}
+
 // ============================================================
 // AUTH & USERS
 // ============================================================
 
 model User {
-  id            String    @id @default(cuid())
-  email         String    @unique
-  password      String
+  id            String       @id @default(cuid())
+  email         String       @unique
+  password      String?      // nullable — OAuth users may not have a password
   firstName     String
   lastName      String
   phone         String?
   avatarUrl     String?
-  role          Role      @default(CUSTOMER)
-  isActive      Boolean   @default(true)
-  isVerified    Boolean   @default(false)
+  role          Role         @default(CUSTOMER)
+  provider      AuthProvider @default(LOCAL)
+  googleId      String?      @unique
+  facebookId    String?      @unique
+  isActive      Boolean      @default(true)
+  isVerified    Boolean      @default(false)
   verifyToken   String?
   resetToken    String?
   resetTokenExp DateTime?
   refreshToken  String?
   lastLoginAt   DateTime?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
 
   addresses     UserAddress[]
   cart          Cart?
@@ -125,6 +149,8 @@ model User {
   couponUsages  CouponUsage[]
   auditLogs     AuditLog[]
   rolePerms     UserRolePermission[]
+  chatSessionsAsUser  ChatSession[] @relation("UserSessions")
+  chatSessionsAsStaff ChatSession[] @relation("StaffSessions")
 
   @@index([email])
   @@index([role])
@@ -932,4 +958,43 @@ model AuditLog {
   @@index([entity, entityId])
   @@index([createdAt])
   @@map("audit_logs")
+}
+
+// ============================================================
+// CHAT SYSTEM
+// ============================================================
+
+model ChatSession {
+  id        String            @id @default(cuid())
+  userId    String?
+  guestId   String?           // sessionId cho khách vãng lai
+  staffId   String?
+  status    ChatSessionStatus @default(BOT_HANDLING)
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+  closedAt  DateTime?
+
+  user     User?        @relation("UserSessions", fields: [userId], references: [id])
+  staff    User?        @relation("StaffSessions", fields: [staffId], references: [id])
+  messages ChatMessage[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("chat_sessions")
+}
+
+model ChatMessage {
+  id        String            @id @default(cuid())
+  sessionId String
+  sender    ChatMessageSender
+  content   String            @db.Text
+  metadata  Json?             // product cards, quick replies, etc.
+  createdAt DateTime          @default(now())
+
+  session ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@index([createdAt])
+  @@map("chat_messages")
 }

@@ -13,7 +13,7 @@ import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../database/prisma.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
-import { User, Role } from '@prisma/client';
+import { User, Role, AuthProvider } from '@prisma/client';
 import { EmailService } from '../email/email.service';
 
 export type JwtPayload = {
@@ -95,6 +95,7 @@ export class AuthService {
     const user = await this.prisma.user.findUnique({ where: { email } });
     if (!user) throw new UnauthorizedException('Invalid credentials');
     if (!user.isActive) throw new UnauthorizedException('Account is disabled');
+    if (!user.password) throw new UnauthorizedException('This account uses social login. Please sign in with Google or Facebook.');
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) throw new UnauthorizedException('Invalid credentials');
@@ -137,6 +138,76 @@ export class AuthService {
       where: { id: userId },
       data: { refreshToken: null },
     });
+  }
+
+  // ─────────────────────────────────────────────
+  // OAUTH — FIND OR CREATE
+  // ─────────────────────────────────────────────
+  async findOrCreateOAuthUser(data: {
+    provider: 'GOOGLE' | 'FACEBOOK';
+    providerId: string;
+    email: string;
+    firstName: string;
+    lastName: string;
+    avatarUrl?: string;
+  }): Promise<{ user: SafeUser; accessToken: string; refreshToken: string }> {
+    const providerField = data.provider === 'GOOGLE' ? 'googleId' : 'facebookId';
+    const authProvider: AuthProvider = data.provider === 'GOOGLE' ? AuthProvider.GOOGLE : AuthProvider.FACEBOOK;
+
+    // 1. Find by provider ID
+    let user = await this.prisma.user.findFirst({
+      where: { [providerField]: data.providerId },
+    });
+
+    // 2. Find by email — link to existing account
+    if (!user) {
+      const existingByEmail = await this.prisma.user.findUnique({
+        where: { email: data.email },
+      });
+      if (existingByEmail) {
+        user = await this.prisma.user.update({
+          where: { id: existingByEmail.id },
+          data: {
+            [providerField]: data.providerId,
+            avatarUrl: existingByEmail.avatarUrl ?? data.avatarUrl,
+            lastLoginAt: new Date(),
+          },
+        });
+      }
+    }
+
+    // 3. Create brand-new user
+    if (!user) {
+      user = await this.prisma.user.create({
+        data: {
+          email: data.email,
+          firstName: data.firstName,
+          lastName: data.lastName,
+          avatarUrl: data.avatarUrl,
+          provider: authProvider,
+          [providerField]: data.providerId,
+          isVerified: true, // OAuth accounts are pre-verified
+          role: Role.CUSTOMER,
+        },
+      });
+      // Create wishlist and cart for new user
+      await Promise.all([
+        this.prisma.wishlist.create({ data: { userId: user.id } }),
+        this.prisma.cart.create({ data: { userId: user.id } }),
+      ]);
+    }
+
+    if (!user.isActive) throw new UnauthorizedException('Account is disabled');
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { lastLoginAt: new Date() },
+    });
+
+    const tokens = await this.generateTokens(user);
+    await this.updateRefreshToken(user.id, tokens.refreshToken);
+
+    return { user: this.sanitizeUser(user), ...tokens };
   }
 
   // ─────────────────────────────────────────────────────────────────────────

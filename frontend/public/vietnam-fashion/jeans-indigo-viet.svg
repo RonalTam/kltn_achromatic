@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="1200" viewBox="0 0 900 1200">
+  <rect width="900" height="1200" fill="#edf3f7"/>
+  <rect x="78" y="78" width="744" height="1044" fill="#ffffff" stroke="#c8d8e2" stroke-width="2"/>
+  <path d="M330 215h240l55 700H505l-55-500-55 500H275l55-700z" fill="#173f67" stroke="#101820" stroke-width="8" stroke-linejoin="round"/>
+  <path d="M330 215h240v82H330z" fill="#225985" stroke="#101820" stroke-width="8"/>
+  <path d="M450 297v612" stroke="#101820" stroke-width="6"/>
+  <path d="M348 323c35 35 68 35 102 0 34 35 67 35 102 0" fill="none" stroke="#f2b84b" stroke-width="6"/>
+  <path d="M300 915h120M480 915h120" stroke="#f2b84b" stroke-width="9" stroke-linecap="round"/>
+  <text x="450" y="970" text-anchor="middle" font-family="Arial, sans-serif" font-size="40" font-weight="700" fill="#173f67">Jeans Indigo Việt</text>
+  <text x="450" y="1028" text-anchor="middle" font-family="Arial, sans-serif" font-size="25" fill="#587388">Denim 13oz • Wash xanh đậm</text>
+</svg>

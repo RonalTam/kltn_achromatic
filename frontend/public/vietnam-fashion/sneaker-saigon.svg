@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="1200" viewBox="0 0 900 1200">
+  <rect width="900" height="1200" fill="#f2f5f7"/>
+  <rect x="78" y="78" width="744" height="1044" fill="#ffffff" stroke="#ccd6df" stroke-width="2"/>
+  <path d="M230 610c125-22 218-82 286-172 76 52 130 120 164 204 48 16 72 48 72 96H190c0-66 14-106 40-128z" fill="#f7f7f7" stroke="#111" stroke-width="8" stroke-linejoin="round"/>
+  <path d="M190 738h562v70H190z" fill="#111" stroke="#111" stroke-width="8"/>
+  <path d="M372 520h178M340 565h230" stroke="#d94f3d" stroke-width="9" stroke-linecap="round"/>
+  <circle cx="582" cy="632" r="12" fill="#d94f3d"/>
+  <text x="450" y="970" text-anchor="middle" font-family="Arial, sans-serif" font-size="40" font-weight="700" fill="#1f1f1f">Sneaker Sài Gòn</text>
+  <text x="450" y="1028" text-anchor="middle" font-family="Arial, sans-serif" font-size="25" fill="#65717b">Da tổng hợp • Đế cao su</text>
+</svg>

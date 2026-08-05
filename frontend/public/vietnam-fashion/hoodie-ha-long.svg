@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="1200" viewBox="0 0 900 1200">
+  <rect width="900" height="1200" fill="#edf7f7"/>
+  <rect x="76" y="76" width="748" height="1048" fill="#ffffff" stroke="#c6dcdd" stroke-width="2"/>
+  <path d="M286 322c0-86 72-142 164-142s164 56 164 142l75 502H211l75-502z" fill="#0e6f75" stroke="#101820" stroke-width="8" stroke-linejoin="round"/>
+  <path d="M354 318c26-44 66-68 96-68s70 24 96 68" fill="none" stroke="#d9f0ef" stroke-width="12" stroke-linecap="round"/>
+  <path d="M348 632h204v118H348z" fill="#17828a" stroke="#101820" stroke-width="7"/>
+  <path d="M450 318v245" stroke="#d9f0ef" stroke-width="7" stroke-dasharray="12 18"/>
+  <path d="M322 824h256" stroke="#f3c64f" stroke-width="10"/>
+  <text x="450" y="970" text-anchor="middle" font-family="Arial, sans-serif" font-size="40" font-weight="700" fill="#0e6f75">Hoodie Hạ Long</text>
+  <text x="450" y="1028" text-anchor="middle" font-family="Arial, sans-serif" font-size="25" fill="#617b7c">French terry 380gsm • Unisex</text>
+</svg>

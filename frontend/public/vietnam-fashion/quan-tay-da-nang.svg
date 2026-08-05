@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="1200" viewBox="0 0 900 1200">
+  <rect width="900" height="1200" fill="#eef1f6"/>
+  <rect x="76" y="76" width="748" height="1048" fill="#ffffff" stroke="#ccd2df" stroke-width="2"/>
+  <path d="M338 215h224l48 695H492l-42-500-42 500H290l48-695z" fill="#2f343d" stroke="#111" stroke-width="8" stroke-linejoin="round"/>
+  <path d="M338 215h224v82H338z" fill="#424956" stroke="#111" stroke-width="8"/>
+  <path d="M450 297v612" stroke="#111" stroke-width="6"/>
+  <path d="M376 245h48M476 245h48" stroke="#aab3c0" stroke-width="7" stroke-linecap="round"/>
+  <path d="M305 920h120M475 920h120" stroke="#d94f3d" stroke-width="9" stroke-linecap="round"/>
+  <text x="450" y="970" text-anchor="middle" font-family="Arial, sans-serif" font-size="40" font-weight="700" fill="#2f343d">Quần Tây Đà Nẵng</text>
+  <text x="450" y="1028" text-anchor="middle" font-family="Arial, sans-serif" font-size="25" fill="#667085">Form slim • Vải co giãn</text>
+</svg>

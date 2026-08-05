@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="1200" viewBox="0 0 900 1200">
+  <rect width="900" height="1200" fill="#f5f1ea"/>
+  <rect x="70" y="70" width="760" height="1060" fill="#ffffff" stroke="#d8cfc3" stroke-width="2"/>
+  <path d="M285 260 380 210h140l95 50 90 185-95 42-50-95v420H340V392l-50 95-95-42 90-185z" fill="#fffaf2" stroke="#1f1f1f" stroke-width="8" stroke-linejoin="round"/>
+  <path d="M383 213c12 58 122 58 134 0" fill="none" stroke="#1f1f1f" stroke-width="8"/>
+  <path d="M320 780h260" stroke="#d13f2f" stroke-width="10"/>
+  <circle cx="450" cy="506" r="74" fill="none" stroke="#d13f2f" stroke-width="8"/>
+  <path d="M410 520c38-64 84-64 122 0" fill="none" stroke="#d13f2f" stroke-width="7" stroke-linecap="round"/>
+  <text x="450" y="970" text-anchor="middle" font-family="Arial, sans-serif" font-size="42" font-weight="700" fill="#1f1f1f">Áo Thun Sài Gòn</text>
+  <text x="450" y="1028" text-anchor="middle" font-family="Arial, sans-serif" font-size="25" fill="#7a6a58">Cotton Việt Nam • VND</text>
+</svg>

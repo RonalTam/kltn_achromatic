@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="1200" viewBox="0 0 900 1200">
+  <rect width="900" height="1200" fill="#f3f0ff"/>
+  <rect x="76" y="76" width="748" height="1048" fill="#ffffff" stroke="#d4cbed" stroke-width="2"/>
+  <path d="M350 210h200l40 620H310l40-620z" fill="#6c4ab6" stroke="#111" stroke-width="8" stroke-linejoin="round"/>
+  <path d="M350 210c30 70 170 70 200 0" fill="#f7f3ff" stroke="#111" stroke-width="8"/>
+  <path d="M450 288v542" stroke="#f7f3ff" stroke-width="7"/>
+  <path d="M310 530c-70 95-70 205 0 300M590 530c70 95 70 205 0 300" fill="none" stroke="#b49aff" stroke-width="8"/>
+  <circle cx="450" cy="430" r="74" fill="none" stroke="#f7d153" stroke-width="8"/>
+  <text x="450" y="970" text-anchor="middle" font-family="Arial, sans-serif" font-size="40" font-weight="700" fill="#4b3387">Áo Dài Cách Tân</text>
+  <text x="450" y="1028" text-anchor="middle" font-family="Arial, sans-serif" font-size="25" fill="#74649f">Gấm nhẹ • Phom hiện đại</text>
+</svg>

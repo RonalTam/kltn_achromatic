@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="1200" viewBox="0 0 900 1200">
+  <rect width="900" height="1200" fill="#fff0f2"/>
+  <rect x="78" y="78" width="744" height="1044" fill="#fffdfd" stroke="#edc7cf" stroke-width="2"/>
+  <path d="M365 210h170l45 172 95 460H225l95-460 45-172z" fill="#d94f70" stroke="#111" stroke-width="8" stroke-linejoin="round"/>
+  <path d="M365 210c24 82 146 82 170 0" fill="#fff6f8" stroke="#111" stroke-width="8"/>
+  <path d="M320 382h260" stroke="#8f263e" stroke-width="8"/>
+  <path d="M282 735c96-60 240-60 336 0" fill="none" stroke="#fff6f8" stroke-width="10" stroke-linecap="round"/>
+  <path d="M408 500c34-54 50-54 84 0 52-28 74-4 34 42-30 34-76 52-76 52s-46-18-76-52c-40-46-18-70 34-42z" fill="#fff6f8" opacity=".9"/>
+  <text x="450" y="970" text-anchor="middle" font-family="Arial, sans-serif" font-size="40" font-weight="700" fill="#8f263e">Đầm Midi Hoa Sen</text>
+  <text x="450" y="1028" text-anchor="middle" font-family="Arial, sans-serif" font-size="25" fill="#9b6a75">Lụa pha • Cảm hứng Việt Nam</text>
+</svg>

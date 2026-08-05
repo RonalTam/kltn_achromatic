@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="1200" viewBox="0 0 900 1200">
+  <rect width="900" height="1200" fill="#eef5ed"/>
+  <rect x="78" y="78" width="744" height="1044" fill="#ffffff" stroke="#cdddc8" stroke-width="2"/>
+  <path d="M318 440c18-140 246-140 264 0l60 170H258l60-170z" fill="#1f2b22" stroke="#111" stroke-width="8" stroke-linejoin="round"/>
+  <path d="M240 610c90 56 330 56 420 0l-42 100c-84 48-252 48-336 0l-42-100z" fill="#2f4033" stroke="#111" stroke-width="8" stroke-linejoin="round"/>
+  <path d="M336 500c80 28 148 28 228 0" fill="none" stroke="#d6aa4b" stroke-width="8" stroke-linecap="round"/>
+  <text x="450" y="970" text-anchor="middle" font-family="Arial, sans-serif" font-size="40" font-weight="700" fill="#1f2b22">Nón Bucket Việt</text>
+  <text x="450" y="1028" text-anchor="middle" font-family="Arial, sans-serif" font-size="25" fill="#657461">Canvas cotton • Unisex</text>
+</svg>

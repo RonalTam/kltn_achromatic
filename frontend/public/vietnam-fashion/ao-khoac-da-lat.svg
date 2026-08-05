@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="1200" viewBox="0 0 900 1200">
+  <rect width="900" height="1200" fill="#eff5ef"/>
+  <rect x="72" y="72" width="756" height="1056" fill="#ffffff" stroke="#cbd9c7" stroke-width="2"/>
+  <path d="M285 260 380 210h140l95 50 88 565H197l88-565z" fill="#42513b" stroke="#111" stroke-width="8" stroke-linejoin="round"/>
+  <path d="M380 210 450 326l70-116" fill="#2f3d2b" stroke="#111" stroke-width="8" stroke-linejoin="round"/>
+  <path d="M450 326v500" stroke="#111" stroke-width="7"/>
+  <path d="M318 510h92v88h-92zM490 510h92v88h-92z" fill="#536548" stroke="#111" stroke-width="6"/>
+  <path d="M280 820h340" stroke="#d6aa4b" stroke-width="10"/>
+  <text x="450" y="970" text-anchor="middle" font-family="Arial, sans-serif" font-size="40" font-weight="700" fill="#42513b">Áo Khoác Đà Lạt</text>
+  <text x="450" y="1028" text-anchor="middle" font-family="Arial, sans-serif" font-size="25" fill="#66745d">Canvas chống gió • Xanh rêu</text>
+</svg>

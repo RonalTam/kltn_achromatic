@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="1200" viewBox="0 0 900 1200">
+  <rect width="900" height="1200" fill="#eef3f1"/>
+  <rect x="74" y="74" width="752" height="1052" rx="18" fill="#ffffff" stroke="#c9d8d0" stroke-width="2"/>
+  <path d="M280 272 372 220h156l92 52 78 176-88 44-56-104v426H346V388l-56 104-88-44 78-176z" fill="#12324a" stroke="#111" stroke-width="8" stroke-linejoin="round"/>
+  <path d="M372 220 450 305l78-85" fill="#f4f0e8" stroke="#111" stroke-width="8" stroke-linejoin="round"/>
+  <path d="M450 305v142" stroke="#f4f0e8" stroke-width="8"/>
+  <circle cx="450" cy="348" r="7" fill="#f4f0e8"/>
+  <circle cx="450" cy="392" r="7" fill="#f4f0e8"/>
+  <path d="M329 790h242" stroke="#d6aa4b" stroke-width="10"/>
+  <text x="450" y="970" text-anchor="middle" font-family="Arial, sans-serif" font-size="42" font-weight="700" fill="#12324a">Polo Hà Nội</text>
+  <text x="450" y="1028" text-anchor="middle" font-family="Arial, sans-serif" font-size="25" fill="#66766e">Piqué cotton • May tại Việt Nam</text>
+</svg>

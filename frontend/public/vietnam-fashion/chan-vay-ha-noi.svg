@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="1200" viewBox="0 0 900 1200">
+  <rect width="900" height="1200" fill="#f8f2ec"/>
+  <rect x="78" y="78" width="744" height="1044" fill="#ffffff" stroke="#dfcfc2" stroke-width="2"/>
+  <path d="M342 250h216l78 570H264l78-570z" fill="#c78549" stroke="#111" stroke-width="8" stroke-linejoin="round"/>
+  <path d="M342 250h216v76H342z" fill="#a86b37" stroke="#111" stroke-width="8"/>
+  <path d="M371 350 330 820M450 350v470M529 350l41 470" stroke="#f3d7bd" stroke-width="7"/>
+  <path d="M292 820h316" stroke="#111" stroke-width="8" stroke-linecap="round"/>
+  <text x="450" y="970" text-anchor="middle" font-family="Arial, sans-serif" font-size="40" font-weight="700" fill="#8b562b">Chân Váy Hà Nội</text>
+  <text x="450" y="1028" text-anchor="middle" font-family="Arial, sans-serif" font-size="25" fill="#82654e">Linen nâu • Xếp ly nhẹ</text>
+</svg>

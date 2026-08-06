@@ -19,6 +19,9 @@ export class FacebookStrategy extends PassportStrategy(Strategy, 'facebook') {
       proxy: true,    // Trust X-Forwarded-Proto from Render's reverse proxy
       state: false,   // Disable session-based state (no express-session configured) to prevent double code exchange
       enableProof: false,
+      authorizationURL: 'https://www.facebook.com/v18.0/dialog/oauth',
+      tokenURL: 'https://graph.facebook.com/v18.0/oauth/access_token',
+      profileURL: 'https://graph.facebook.com/v18.0/me',
     });
   }
 

@@ -182,6 +182,7 @@ export class AuthController {
     @Req() req: Request & { user: { user: any; accessToken: string; refreshToken: string } },
     @Res() res: Response,
   ) {
+    console.log('[Facebook Callback] Successfully exchanged token and validated user!', req.user?.user?.email);
     return this.handleOAuthCallback(req, res);
   }
 

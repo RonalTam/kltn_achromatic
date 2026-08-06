@@ -25,6 +25,7 @@ async function bootstrap() {
   const apiPrefix = configService.get<string>('API_PREFIX', 'api');
 
   // Security
+  app.getHttpAdapter().getInstance().set('trust proxy', 1);
   app.use(helmet.default());
   app.use(cookieParser());
 

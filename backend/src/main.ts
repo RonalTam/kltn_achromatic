@@ -29,6 +29,18 @@ async function bootstrap() {
   app.use(helmet.default());
   app.use(cookieParser());
 
+  // Prevent Facebook crawler (facebookexternalhit) from consuming the one-time OAuth code
+  // This happens when links are opened in Facebook/Messenger in-app browsers, 
+  // where the bot pre-fetches the redirect URL for safety checks.
+  app.use('/api/auth/facebook/callback', (req, res, next) => {
+    const userAgent = req.headers['user-agent'] || '';
+    if (userAgent.includes('facebookexternalhit') || userAgent.includes('Facebot')) {
+      console.log('Blocked Facebook crawler from consuming OAuth code.');
+      return res.status(200).send('OK'); // Return 200 so FB doesn't flag it as malicious
+    }
+    next();
+  });
+
   // CORS
   app.enableCors({
     origin: [frontendUrl, 'http://localhost:3000', 'http://localhost:3001'],

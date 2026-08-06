@@ -24,6 +24,7 @@ export default function CheckoutPage() {
   // Prevents the "cart empty → /cart" redirect from firing when we're about
   // to hand off control to the VNPay gateway (clearCart fires first).
   const isRedirectingToPayment = useRef(false);
+  const hasCompletedCheckout = useRef(false);
 
   const [formData, setFormData] = useState({
     email: user?.email ?? '',
@@ -91,7 +92,7 @@ export default function CheckoutPage() {
   }, [user, accessToken, router, storesHydrated]);
 
   useEffect(() => {
-    if (isRedirectingToPayment.current) return;
+    if (isRedirectingToPayment.current || hasCompletedCheckout.current) return;
     if (storesHydrated && items.length === 0) router.replace('/cart');
   }, [items.length, router, storesHydrated]);
 
@@ -230,6 +231,7 @@ export default function CheckoutPage() {
         }
       }
 
+      hasCompletedCheckout.current = true;
       clearCart();
       toast.success('Đặt hàng thành công!', {
         description: orderNumber ? `Mã đơn hàng: ${orderNumber}` : 'Đơn hàng của bạn đã được xác nhận.',

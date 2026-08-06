@@ -48,7 +48,7 @@ function LoginForm() {
         description: 'Chào mừng bạn trở lại ACHROMATIC.',
         duration: 3000,
       });
-      router.push(redirectTo);
+      // router.push is handled by the useEffect watching isAuthenticated
     } catch (err: unknown) {
       const msg =
         err instanceof Error

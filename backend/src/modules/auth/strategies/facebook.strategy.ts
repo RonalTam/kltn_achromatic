@@ -16,7 +16,9 @@ export class FacebookStrategy extends PassportStrategy(Strategy, 'facebook') {
       callbackURL: configService.getOrThrow<string>('FACEBOOK_CALLBACK_URL'),
       scope: ['email', 'public_profile'],
       profileFields: ['id', 'emails', 'name', 'picture.type(large)'],
-      proxy: true, // Fix "authorization code has been used" error on Render (trusts X-Forwarded-Proto)
+      proxy: true,    // Trust X-Forwarded-Proto from Render's reverse proxy
+      state: false,   // Disable session-based state (no express-session configured) to prevent double code exchange
+      enableProof: false,
     });
   }
 

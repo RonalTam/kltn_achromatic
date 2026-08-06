@@ -32,7 +32,7 @@ async function bootstrap() {
   // Prevent Facebook crawler (facebookexternalhit) from consuming the one-time OAuth code
   // This happens when links are opened in Facebook/Messenger in-app browsers, 
   // where the bot pre-fetches the redirect URL for safety checks.
-  app.use('/api/auth/facebook/callback', (req, res, next) => {
+  app.use('/api/auth/facebook/callback', (req: any, res: any, next: any) => {
     const userAgent = req.headers['user-agent'] || '';
     if (userAgent.includes('facebookexternalhit') || userAgent.includes('Facebot')) {
       console.log('Blocked Facebook crawler from consuming OAuth code.');

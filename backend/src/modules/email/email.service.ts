@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { MailerService } from '@nestjs-modules/mailer';
+import { Resend } from 'resend';
 import {
   orderConfirmationEmailTemplate,
   type OrderEmailItem,
@@ -22,6 +23,8 @@ export class EmailService {
   private readonly logger = new Logger(EmailService.name);
   private readonly frontendUrl: string;
   private readonly smtpConfigured: boolean;
+  private readonly resend?: Resend;
+  private readonly defaultFrom: string;
 
   constructor(
     private readonly mailer: MailerService,
@@ -30,11 +33,20 @@ export class EmailService {
     this.frontendUrl = this.config
       .get<string>('FRONTEND_URL', 'http://localhost:3000')
       .replace(/\/$/, '');
+      
     this.smtpConfigured = Boolean(
       this.config.get<string>('SMTP_HOST') &&
       this.config.get<string>('SMTP_USER') &&
       this.config.get<string>('SMTP_PASS'),
     );
+
+    const resendApiKey = this.config.get<string>('RESEND_API_KEY');
+    if (resendApiKey) {
+      this.resend = new Resend(resendApiKey);
+      this.logger.log('Resend API enabled. Will use Resend for outgoing emails.');
+    }
+
+    this.defaultFrom = this.config.get<string>('SMTP_FROM')?.trim() || 'ACHROMATIC <noreply@achromatic.local>';
   }
 
   async sendWelcomeEmail(to: string, firstName: string): Promise<boolean> {
@@ -91,6 +103,27 @@ export class EmailService {
     category: string;
   }): Promise<boolean> {
     try {
+      if (this.resend) {
+        // Use Resend API
+        const { data, error } = await this.resend.emails.send({
+          from: this.defaultFrom,
+          to: input.to,
+          subject: input.subject,
+          html: input.html,
+          tags: [{ name: 'category', value: input.category }],
+        });
+
+        if (error) {
+          throw new Error(error.message);
+        }
+        
+        this.logger.log(
+          `Email ${input.category} accepted by Resend for ${input.to} (ID: ${data?.id})`,
+        );
+        return true;
+      }
+
+      // Fallback to Nodemailer SMTP
       const info: unknown = await this.mailer.sendMail({
         to: input.to,
         subject: input.subject,
@@ -105,9 +138,10 @@ export class EmailService {
         typeof rawMessageId === 'string' || typeof rawMessageId === 'number'
           ? String(rawMessageId)
           : 'no-id';
+          
       if (this.smtpConfigured) {
         this.logger.log(
-          `Email ${input.category} accepted for ${input.to} (${messageId})`,
+          `Email ${input.category} accepted for ${input.to} (${messageId}) via SMTP`,
         );
       } else {
         this.logger.warn(

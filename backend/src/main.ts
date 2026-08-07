@@ -1,4 +1,9 @@
 import './instrument';
+import dns from 'dns';
+
+// Force Node.js to prefer IPv4 for all DNS resolution (fixes ENETUNREACH for SMTP on Render)
+dns.setDefaultResultOrder('ipv4first');
+
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, VersioningType } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';

@@ -27,7 +27,7 @@ import { EmailService } from './email.service';
 
         return {
           transport: smtpConfigured
-            ? {
+            ? ({
                 host,
                 port,
                 secure,
@@ -38,7 +38,7 @@ import { EmailService } from './email.service';
                 socketTimeout: 20000,
                 // Force IPv4 because Render free instances often have broken IPv6 routing (ENETUNREACH)
                 family: 4,
-              }
+              } as any)
             : { jsonTransport: true },
           defaults: {
             from,

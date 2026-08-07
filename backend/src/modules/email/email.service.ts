@@ -43,10 +43,11 @@ export class EmailService {
     const resendApiKey = this.config.get<string>('RESEND_API_KEY');
     if (resendApiKey) {
       this.resend = new Resend(resendApiKey);
+      this.defaultFrom = this.config.get<string>('RESEND_FROM') || 'ACHROMATIC <onboarding@resend.dev>';
       this.logger.log('Resend API enabled. Will use Resend for outgoing emails.');
+    } else {
+      this.defaultFrom = this.config.get<string>('SMTP_FROM')?.trim() || 'ACHROMATIC <noreply@achromatic.local>';
     }
-
-    this.defaultFrom = this.config.get<string>('SMTP_FROM')?.trim() || 'ACHROMATIC <noreply@achromatic.local>';
   }
 
   async sendWelcomeEmail(to: string, firstName: string): Promise<boolean> {

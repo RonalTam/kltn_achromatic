@@ -34,6 +34,10 @@ import { EmailService } from './email.service';
                 requireTLS: port === 587,
                 auth: { user, pass },
                 connectionTimeout: 10000,
+                greetingTimeout: 10000,
+                socketTimeout: 20000,
+                // Force IPv4 because Render free instances often have broken IPv6 routing (ENETUNREACH)
+                family: 4,
               }
             : { jsonTransport: true },
           defaults: {

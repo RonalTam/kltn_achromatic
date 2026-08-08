@@ -9,6 +9,7 @@ import {
   HttpStatus,
   UseGuards,
   UnauthorizedException,
+  BadRequestException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -73,6 +74,29 @@ export class AuthController {
     const tokens = await this.authService.refresh(refreshToken);
     this.setRefreshTokenCookie(res, tokens.refreshToken);
     return { accessToken: tokens.accessToken };
+  }
+
+  // ─────────────────────────────────────
+  // MOBILE TOKEN REFRESH (Body-based, no cookie)
+  // ─────────────────────────────────────
+
+  @Public()
+  @Post('mobile/refresh')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Mobile: Refresh access token using refreshToken in request body',
+    description:
+      'Designed for native mobile apps that cannot use httpOnly cookies. ' +
+      'Send the refreshToken obtained during login/register in the JSON body.',
+  })
+  async mobileRefresh(
+    @Body() body: { refreshToken?: string },
+  ) {
+    if (!body?.refreshToken) {
+      throw new BadRequestException('refreshToken is required in the request body');
+    }
+    const tokens = await this.authService.refresh(body.refreshToken);
+    return { accessToken: tokens.accessToken, refreshToken: tokens.refreshToken };
   }
 
   @UseGuards(JwtAuthGuard)

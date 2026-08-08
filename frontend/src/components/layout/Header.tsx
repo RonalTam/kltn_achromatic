@@ -114,7 +114,7 @@ function HeaderContent({
         animate={{ y: 0 }}
         transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
       >
-        <div className="relative flex w-full max-w-full items-center justify-between px-4 py-2.5 sm:px-5 md:px-10 lg:px-20 lg:py-3 xl:py-5">
+        <div className="flex w-full max-w-full items-center justify-between px-4 py-2.5 sm:px-5 md:px-10 lg:px-20 lg:py-3 xl:py-5">
           {/* Mobile Menu Toggle */}
           <button
             onClick={() => setMobileMenuOpen(true)}
@@ -127,7 +127,7 @@ function HeaderContent({
           </button>
 
           {/* Desktop Navigation */}
-          <nav className="hidden xl:flex items-center gap-8 2xl:gap-12">
+          <nav className="hidden xl:flex flex-1 items-center gap-8 2xl:gap-12">
             {navItems.map((item) => {
               const isActive = isNavItemActive(item);
 
@@ -159,11 +159,11 @@ function HeaderContent({
             })}
           </nav>
 
-          {/* Brand Logo — Absolute Center */}
+          {/* Brand Logo — Center */}
           <Link
             href="/"
             aria-label="ACHROMATIC - Trang chủ"
-            className={`absolute left-1/2 flex min-h-11 -translate-x-1/2 items-center whitespace-nowrap font-heading text-[15px] font-medium uppercase tracking-[0.08em] transition-colors duration-300 min-[360px]:text-lg min-[360px]:tracking-[0.1em] sm:text-xl sm:tracking-[0.15em] md:text-2xl ${
+            className={`flex min-h-11 shrink-0 items-center whitespace-nowrap font-heading text-[15px] font-medium uppercase tracking-[0.08em] transition-colors duration-300 min-[360px]:text-lg min-[360px]:tracking-[0.1em] sm:text-xl sm:tracking-[0.15em] md:text-2xl ${
               useDarkHeaderContent ? "text-[#111111]" : "text-white"
             }`}
           >
@@ -171,7 +171,7 @@ function HeaderContent({
           </Link>
 
           {/* Trailing Icons */}
-          <div className="flex items-center">
+          <div className="flex flex-1 items-center justify-end">
             {/* Search */}
             <button
               onClick={() => setSearchOpen(!searchOpen)}
